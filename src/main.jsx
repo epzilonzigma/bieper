@@ -6,9 +6,9 @@ import './index.css';
 
 const rootElement = document.getElementById('root');
 ReactDOM.createRoot(rootElement).render(
-  <React.StrictMode>
-    <ChakraProvider>
-      <App />
-    </ChakraProvider>
-  </React.StrictMode>,
-)
+    <React.StrictMode>
+        <ChakraProvider>
+            <App />
+        </ChakraProvider>
+    </React.StrictMode>
+);
