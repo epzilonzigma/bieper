@@ -1,12 +1,12 @@
-import { VStack, Text, HStack, Box, Button, Input } from '@chakra-ui/react';
-import React, { useState, useEffect } from 'react';
+import { VStack, Text, HStack, Box, Button, Input } from "@chakra-ui/react";
+import React, { useState, useEffect } from "react";
 
 const getRandomInteger = (min, max) => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 };
 
 export const Timer = () => {
-    const beepSound = new Audio('/beep.mp3');
+    const beepSound = new Audio("/beep.mp3");
 
     const [isRunning, setIsRunning] = useState(false);
 
@@ -124,11 +124,11 @@ export const Timer = () => {
                 <Button
                     size="lg"
                     width="120px"
-                    backgroundColor={isRunning ? '#FD6259' : '#03AE85'}
+                    backgroundColor={isRunning ? "#FD6259" : "#03AE85"}
                     color="white"
                     onClick={handleStartPause}
                 >
-                    {isRunning ? 'Pause' : 'Start'}
+                    {isRunning ? "Pause" : "Start"}
                 </Button>
                 <Button size="lg" width="120px" onClick={handleReset}>
                     Reset
