@@ -12,8 +12,8 @@ export const Timer = () => {
 
     const [timeRemaining, setTimeRemaining] = useState(0);
     const [previousTimeRemaining, setPreviousTimeRemaining] = useState(timeRemaining);
-    const [minutesRemaining, setMinutesRemaining] = useState(Math.floor(timeRemaining / 60));
-    const [secondsRemaining, setSecondsRemaining] = useState(timeRemaining % 60);
+    const [minutesRemaining, setMinutesRemaining] = useState(Math.floor(timeRemaining / 6000));
+    const [secondsRemaining, setSecondsRemaining] = useState((timeRemaining / 100) % 60);
 
     const [minBeepInterval, setMinBeepInterval] = useState(0);
     const [maxBeepInterval, setMaxBeepInterval] = useState(0);
@@ -27,8 +27,8 @@ export const Timer = () => {
                 timeRemain--;
                 randomInterval--;
                 setTimeRemaining(timeRemain);
-                setMinutesRemaining(Math.floor(timeRemain / 60));
-                setSecondsRemaining(timeRemain % 60);
+                setMinutesRemaining(Math.floor(timeRemain / 6000));
+                setSecondsRemaining((timeRemain / 100) % 60);
 
                 if (
                     randomInterval === 0 ||
@@ -42,7 +42,7 @@ export const Timer = () => {
                     clearInterval(countdown);
                     setIsRunning(false);
                 }
-            }, 1000);
+            }, 10); // updates every centisecond
 
             return () => clearInterval(countdown);
         }
@@ -69,8 +69,8 @@ export const Timer = () => {
     const handleReset = () => {
         setIsRunning(false);
         setTimeRemaining(previousTimeRemaining);
-        setMinutesRemaining(Math.floor(previousTimeRemaining / 60));
-        setSecondsRemaining(previousTimeRemaining % 60);
+        setMinutesRemaining(Math.floor(previousTimeRemaining / 6000));
+        setSecondsRemaining((previousTimeRemaining / 100) % 60);
     };
 
     const handleEnterSeconds = (e) => {
@@ -78,7 +78,7 @@ export const Timer = () => {
             return;
         } else {
             setSecondsRemaining(Number(e.target.value));
-            setTimeRemaining(Number(e.target.value) + minutesRemaining * 60);
+            setTimeRemaining((Number(e.target.value) + minutesRemaining * 60) * 100);
         }
     };
 
@@ -87,7 +87,7 @@ export const Timer = () => {
             return;
         } else {
             setMinutesRemaining(Number(e.target.value));
-            setTimeRemaining(Number(e.target.value) * 60 + secondsRemaining);
+            setTimeRemaining((Number(e.target.value) * 60 + secondsRemaining) * 100);
         }
     };
 
@@ -115,7 +115,7 @@ export const Timer = () => {
                         onChange={handleEnterSeconds}
                         textAlign="center"
                         fontSize="5xl"
-                        value={secondsRemaining}
+                        value={Math.floor(secondsRemaining)}
                     />
                     <Text fontSize="xl">Seconds</Text>
                 </Box>
@@ -143,7 +143,7 @@ export const Timer = () => {
                     <Input
                         placeholder="in seconds"
                         width="75%"
-                        onChange={(e) => setMinBeepInterval(Number(e.target.value))}
+                        onChange={(e) => setMinBeepInterval(Number(e.target.value) * 100)}
                     />
                 </HStack>
                 <HStack color="white" justifyContent="space-around">
@@ -153,7 +153,7 @@ export const Timer = () => {
                     <Input
                         placeholder="in seconds"
                         width="75%"
-                        onChange={(e) => setMaxBeepInterval(Number(e.target.value))}
+                        onChange={(e) => setMaxBeepInterval(Number(e.target.value) * 100)}
                     />
                 </HStack>
             </VStack>
