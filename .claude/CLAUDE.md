@@ -13,7 +13,7 @@ A timer app for combat sports training. Currently at the scaffold stage — the 
 - **TypeScript 5** — strict mode, `moduleResolution: bundler`, path alias `@/*` → `./*` (see `tsconfig.json`).
 - **Tailwind CSS v4** — wired through `@tailwindcss/postcss` in `postcss.config.mjs`. Global styles and `@theme` tokens live in `app/globals.css`; there is no `tailwind.config.*` file (v4 uses CSS-first config).
 - **ESLint 9** — flat config in `eslint.config.mjs` extending `eslint-config-next/core-web-vitals` and `eslint-config-next/typescript`.
-- **Package manager: yarn 1.22 (classic)** — always use `yarn`, never `npm` or `pnpm`. Do not commit a `package-lock.json` or `pnpm-lock.yaml`.
+- **Package manager: yarn 1.22 (classic)** — always use `yarn`, never `npm` or `pnpm`. Always add new packages using only `yarn`, never `npm` or `pnpm` or `npx` (if there is a yarn equivalent). Do not commit a `package-lock.json` or `pnpm-lock.yaml`.
 
 # Commands
 
