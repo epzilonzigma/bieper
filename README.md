@@ -1,1 +1,3 @@
-# timer
+# Bieper
+
+The workout timer.
