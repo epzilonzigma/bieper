@@ -11,7 +11,8 @@ A timer app for combat sports training. Currently at the scaffold stage — the 
 - **Next.js 16.2.3** — App Router. This version is newer than your training cutoff; APIs and conventions may have changed. Before writing Next.js code, read the relevant guide under `node_modules/next/dist/docs/` and heed deprecation notices.
 - **React 19.2.4**
 - **TypeScript 5** — strict mode, `moduleResolution: bundler`, path alias `@/*` → `./*` (see `tsconfig.json`).
-- **Tailwind CSS v4** — wired through `@tailwindcss/postcss` in `postcss.config.mjs`. Global styles and `@theme` tokens live in `app/globals.css`; there is no `tailwind.config.*` file (v4 uses CSS-first config).
+- **Tailwind CSS v4** — wired through `@tailwindcss/postcss` in `postcss.config.mjs`. Global styles and `@theme` tokens live in `app/globals.css`; there is no `tailwind.config.*` file (v4 uses CSS-first config). `globals.css` also `@import`s `shadcn/tailwind.css` and `tw-animate-css`.
+- **shadcn/ui** — installed via the `shadcn` CLI (devDependency) and configured in `components.json` with `style: "base-nova"`, `baseColor: "neutral"`, `iconLibrary: "lucide"`, RSC + TSX, and the `@/components`, `@/components/ui`, `@/lib`, `@/lib/utils`, `@/hooks` aliases. Components are copied into `components/ui/`.
 - **ESLint 9** — flat config in `eslint.config.mjs` extending `eslint-config-next/core-web-vitals` and `eslint-config-next/typescript`.
 - **Package manager: yarn 1.22 (classic)** — always use `yarn`, never `npm` or `pnpm`. Always add new packages using only `yarn`, never `npm` or `pnpm` or `npx` (if there is a yarn equivalent). Do not commit a `package-lock.json` or `pnpm-lock.yaml`.
 
@@ -29,16 +30,102 @@ A timer app for combat sports training. Currently at the scaffold stage — the 
 app/               # Next.js App Router entry
   layout.tsx       # Root layout — loads Geist fonts, sets <html>/<body>
   page.tsx         # Home route (still the scaffold template)
-  globals.css      # Tailwind v4 import + @theme tokens + :root vars
+  globals.css      # Tailwind v4 + shadcn import, @theme tokens, CSS-var theme (:root + .dark)
   favicon.ico
+components/
+  ui/              # shadcn/ui primitives (base-nova style, @base-ui/react under the hood)
 public/            # Static assets served from /
   audio/           # Timer sound cues (start, end, interval) — served at /audio/<file>
+components.json    # shadcn/ui CLI config (style, aliases, icon library)
 next.config.ts     # Next config (currently empty)
 eslint.config.mjs  # Flat ESLint config
 postcss.config.mjs # Tailwind v4 via @tailwindcss/postcss
 tsconfig.json      # Strict TS, @/* path alias
 .claude/           # Claude Code project instructions (this file + AGENTS.md)
+  docs/
+    product.md     # Product requirements, milestones, priorities, release plan
+    design.md      # Design palette, colour tokens, typography, timer-state colours
+  skills/.         # Skills for claude
 ```
+
+# Coding guidelines
+
+## 1. Think Before Coding
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+- Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+3. Surgical Changes
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+- The test: Every changed line should trace directly to the user's request.
+
+4. Goal-Driven Execution
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+- For multi-step tasks, state a brief plan:
+
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+# Product requirements
+
+The product requirements, development priorities, and release plan live in `.claude/docs/product.md`. Read it before starting any feature work. Key points:
+
+- **Milestones define scope** — features are grouped into milestones (MVP, Enhanced, Polish). Implement in milestone order.
+- **Priorities within milestones** — P0 (must have), P1 (should have), P2 (nice to have). Do not start P2 work while P0 items remain incomplete in the same milestone.
+- **Acceptance criteria are the definition of done** — a feature is not complete until every acceptance criterion listed in the PRD is met.
+- **Open questions block implementation** — if a feature references an unresolved open question, flag it to the user rather than guessing.
+- **Release exit criteria** — check the release plan section before declaring a milestone shippable.
+
+# Design
+
+The design palette and UI guidelines live in `.claude/docs/design.md`. Read it before building or modifying any UI. Key points:
+
+- **Dark-first, cool-toned palette** — Midnight/Navy backgrounds with Electric Blue, Cyan, Emerald, Amber, Red, and Violet accents.
+- **Timer-state colours** — each timer state (idle, ready, active, rest, stopped, react) has a dedicated colour defined in the design doc. Use these consistently across all timer UI.
+- **Semantic CSS variable mapping** — the design doc specifies which palette tokens map to each shadcn `--variable` in `globals.css`. When theming, follow that mapping.
+- **Typography** — timer digits use `font-mono` at large sizes; headings and body use `font-sans`.
+
+# Skills
+
+- **`/technical-review <file-path>`** — Reviews a spec document (product, design, etc.) against all repo context and presents findings as numbered questions for the user to answer. It never edits files on its own — the user decides what changes to make. Run this after updating any spec doc under `.claude/docs/` to validate it is implementation-ready.
 
 # Conventions
 
