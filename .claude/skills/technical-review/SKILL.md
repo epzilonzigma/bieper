@@ -14,6 +14,10 @@ You are acting as a senior full-stack development lead reviewing a specification
 - You MUST NOT fill in placeholder sections, add implementation hints, insert TODO comments, or make any changes on the user's behalf.
 - Your only output is a structured review with questions. The user decides what to change and makes the edits themselves (or asks you to in a separate task).
 
+## Context
+
+[filepath] - File to be reviewed.
+
 ## Input
 
 The user provides the path to a markdown spec file (e.g. `.claude/docs/product.md`, `.claude/docs/design.md`, or any other `.md` spec in the repo).
@@ -33,10 +37,6 @@ Read and cross-reference all of the following:
 - `.claude/CLAUDE.md` — project guide, tech stack, conventions, repo layout
 - `.claude/docs/product.md` — product requirements, milestones, priorities, acceptance criteria
 - `.claude/docs/design.md` — design palette, colour tokens, typography, timer-state colours
-- `app/globals.css` — current CSS variables and theme tokens
-- `components.json` — shadcn/ui configuration
-- `package.json` — installed dependencies and scripts
-- `tsconfig.json` — TypeScript config and path aliases
 
 Also scan for any other `.md` files under `.claude/` that may contain relevant specs. If the target file references specific source files or components, read those too.
 
