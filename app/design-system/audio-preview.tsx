@@ -61,8 +61,8 @@ export function AudioPreview() {
               {status === "playing" && (
                 <span className="text-xs text-muted-foreground">Playing…</span>
               )}
-              <Button size="sm" variant="secondary" onClick={() => play(cue.file)}>
-                Play
+              <Button size="sm" onClick={() => play(cue.file)}>
+                Play Sound
               </Button>
             </div>
           </div>
