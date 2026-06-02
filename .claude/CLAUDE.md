@@ -134,3 +134,4 @@ The design palette and UI guidelines live in `.claude/docs/design.md`. Read it b
 - Keep global styling in `app/globals.css` using Tailwind v4's `@theme` — no JS config file.
 - Place route segments under `app/` following App Router conventions — but verify the exact conventions against `node_modules/next/dist/docs/` before introducing new patterns, since this Next.js version may differ from what you remember.
 - Don't create `README`/docs files unless explicitly asked.
+- **No build/deploy commands unless asked.** Never run `yarn build`, `yarn start`, or any build/deploy command unless the user explicitly requests it or a skill's `SKILL.md` explicitly declares it. `yarn lint` and `yarn dev` are fine — production builds are not.
