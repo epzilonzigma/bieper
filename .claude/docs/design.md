@@ -74,6 +74,18 @@ Used in client components for visual feedback during training:
 - **Headings:** `font-sans` (Geist Sans), semibold.
 - **Body / labels:** `font-sans`, regular weight, `text-muted-foreground` for secondary info.
 
+### Audio cues
+
+Timer sound cues live in `public/audio/` and are referenced by public URL (e.g. `new Audio('/audio/timer-start.mp3')`). Do not import audio through the bundler.
+
+| File               | Cue purpose                                      |
+| ------------------ | ------------------------------------------------ |
+| `timer-start.mp3`  | Bell played when the timer starts                |
+| `timer-stop.mp3`   | Bell played when the timer stops or ends         |
+| `interval.mp3`     | Short cue for interval beeps and reaction triggers |
+
+All cues should be crisp, short sounds audible over background noise (see non-functional requirements in `product.md`). Use kebab-case `.mp3` filenames named after the cue's purpose.
+
 ### Border radius
 
 Keep the default shadcn radius (`--radius: 0.625rem`). Use `rounded-lg` for cards/dialogs, `rounded-full` for circular timer displays and icon buttons.

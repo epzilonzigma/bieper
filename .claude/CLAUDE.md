@@ -30,12 +30,16 @@ A timer app for combat sports training. Currently at the scaffold stage — the 
 app/               # Next.js App Router entry
   layout.tsx       # Root layout — loads Geist fonts, sets <html>/<body>
   page.tsx         # Home route (still the scaffold template)
+  design-system/   # Internal design-system preview route (colour swatches, audio cues, etc.)
   globals.css      # Tailwind v4 + shadcn import, @theme tokens, CSS-var theme (:root + .dark)
   favicon.ico
 components/
   ui/              # shadcn/ui primitives (base-nova style, @base-ui/react under the hood)
 public/            # Static assets served from /
-  audio/           # Timer sound cues (start, end, interval) — served at /audio/<file>
+  audio/           # Timer sound cues — served at /audio/<file>
+    timer-start.mp3  # Bell played when the timer starts
+    timer-stop.mp3   # Bell played when the timer stops / ends
+    interval.mp3     # Short cue for interval beeps and reaction triggers
 components.json    # shadcn/ui CLI config (style, aliases, icon library)
 next.config.ts     # Next config (currently empty)
 eslint.config.mjs  # Flat ESLint config

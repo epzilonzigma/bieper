@@ -19,6 +19,14 @@ yarn dev
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 
+## Design assets
+
+Audio assets sourced from Pixabay:
+
+- [transcendedlifting](https://pixabay.com/users/transcendedlifting-30596364/)
+- [freesound_community](https://pixabay.com/users/freesound_community-46691455/)
+- [u_mzcig4o8yx](https://pixabay.com/sound-effects/search/u_mzcig4o8yx/)
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
