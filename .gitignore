@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# task files — keep the directory tracked, ignore its contents
+/.claude/docs/tasks/*
+!/.claude/docs/tasks/.gitkeep
