@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Bieper",
-  description: "A timer for combat sports training.",
+  description: "The timer for reaction and interval training",
 };
 
 export default function RootLayout({

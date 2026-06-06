@@ -15,7 +15,7 @@ export default function Home() {
           Bieper
         </h1>
         <p className="max-w-md text-center text-lg text-muted-foreground">
-          A timer for combat sports training. Coming soon.
+          A timer for reaction and interval training. Coming soon.
         </p>
       </main>
     </div>
