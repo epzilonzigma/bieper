@@ -25,7 +25,8 @@ All agents (subagents, skills, background tasks) must follow the coding guidelin
 ## Verify before reporting done
 
 - Define concrete success criteria before starting (e.g. "test X passes", "page renders without errors").
-- Run `yarn lint` after code changes. Run `yarn build` if the change could affect the build.
+- Run `yarn lint` after code changes.
+- **Never run `yarn build`, `yarn start`, or any build/deploy command** unless the user explicitly requests it or the skill's `SKILL.md` explicitly declares it. `yarn lint` and `yarn dev` are allowed.
 - For UI changes, start the dev server and test in a browser before reporting complete.
 - Every changed line should trace back to the user's request. If it doesn't, revert it.
 

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Bieper — Design System",
-  description: "Living reference for Bieper's colours, typography, and component primitives.",
+  title: "Bieper",
+  description: "A timer for combat sports training.",
 };
 
 export default function RootLayout({

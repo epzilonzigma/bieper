@@ -9,8 +9,8 @@ type Cue = {
 };
 
 const cues: Cue[] = [
-  { file: "/audio/timer-start.mp3", use: "Round start bell" },
-  { file: "/audio/timer-end.mp3", use: "Round end bell" },
+  { file: "/audio/timer-start.mp3", use: "Timer start bell" },
+  { file: "/audio/timer-stop.mp3", use: "Timer stop bell" },
   { file: "/audio/interval.mp3", use: "Interval / warning cue" },
 ];
 
@@ -61,8 +61,8 @@ export function AudioPreview() {
               {status === "playing" && (
                 <span className="text-xs text-muted-foreground">Playing…</span>
               )}
-              <Button size="sm" variant="secondary" onClick={() => play(cue.file)}>
-                Play
+              <Button size="sm" onClick={() => play(cue.file)}>
+                Play Sound
               </Button>
             </div>
           </div>

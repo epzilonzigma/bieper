@@ -30,12 +30,16 @@ A timer app for combat sports training. Currently at the scaffold stage — the 
 app/               # Next.js App Router entry
   layout.tsx       # Root layout — loads Geist fonts, sets <html>/<body>
   page.tsx         # Home route (still the scaffold template)
+  design-system/   # Internal design-system preview route (colour swatches, audio cues, etc.)
   globals.css      # Tailwind v4 + shadcn import, @theme tokens, CSS-var theme (:root + .dark)
   favicon.ico
 components/
   ui/              # shadcn/ui primitives (base-nova style, @base-ui/react under the hood)
 public/            # Static assets served from /
-  audio/           # Timer sound cues (start, end, interval) — served at /audio/<file>
+  audio/           # Timer sound cues — served at /audio/<file>
+    timer-start.mp3  # Bell played when the timer starts
+    timer-stop.mp3   # Bell played when the timer stops / ends
+    interval.mp3     # Short cue for interval beeps and reaction triggers
 components.json    # shadcn/ui CLI config (style, aliases, icon library)
 next.config.ts     # Next config (currently empty)
 eslint.config.mjs  # Flat ESLint config
@@ -134,3 +138,4 @@ The design palette and UI guidelines live in `.claude/docs/design.md`. Read it b
 - Keep global styling in `app/globals.css` using Tailwind v4's `@theme` — no JS config file.
 - Place route segments under `app/` following App Router conventions — but verify the exact conventions against `node_modules/next/dist/docs/` before introducing new patterns, since this Next.js version may differ from what you remember.
 - Don't create `README`/docs files unless explicitly asked.
+- **No build/deploy commands unless asked.** Never run `yarn build`, `yarn start`, or any build/deploy command unless the user explicitly requests it or a skill's `SKILL.md` explicitly declares it. `yarn lint` and `yarn dev` are fine — production builds are not.
