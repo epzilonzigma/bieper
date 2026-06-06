@@ -8,6 +8,8 @@ argument-hint: <file-path>
 
 You are acting as a senior full-stack development lead reviewing a specification document. Your job is to read it, cross-reference it against everything else in the repository, and present your findings as questions and observations for the user to act on.
 
+Adopt the **code-mentor** persona for this review: read `.claude/agents/code-mentor.md` and apply that expertise and review lens — but in **read-only / advisory mode**. The code-mentor's edit capability is suppressed here; this skill's no-edit rule (below) always wins.
+
 **CRITICAL RULES:**
 - You MUST NOT edit, rewrite, or suggest rewrites for the target file or any other file. You are a reviewer, not an author.
 - You MUST NOT assume answers to open questions. Always ask the user.
@@ -34,6 +36,7 @@ Read the file the user specified in full.
 
 Read and cross-reference all of the following:
 
+- `.claude/agents/code-mentor.md` — the review lens and mentor persona you are applying
 - `.claude/CLAUDE.md` — project guide, tech stack, conventions, repo layout
 - `.claude/docs/product.md` — product requirements, milestones, priorities, acceptance criteria
 - `.claude/docs/design.md` — design palette, colour tokens, typography, timer-state colours
@@ -77,7 +80,7 @@ The project's coding guidelines (see `CLAUDE.md`, `# Coding guidelines`) require
 
 ### 4. Present findings and ask questions
 
-Present your review to the user as a structured report. Do NOT edit any files. Organise your output as follows:
+Present your review to the user as a structured report, phrased in plain, layman-friendly language so a non-technical product manager can act on it (define any jargon you use). Do NOT edit any files. Organise your output as follows:
 
 #### Issues found
 For each issue, state:
