@@ -38,6 +38,6 @@ All agents (subagents, skills, background tasks) must follow the coding guidelin
 
 ## Testing
 
-- Every feature ships **Vitest unit/component tests** co-located with the source (`components/<name>.test.tsx`) **and** a **Playwright E2E spec** under `e2e/`.
-- Commands: `yarn test` (run once), `yarn test:watch` (watch mode), `yarn test:e2e` (Playwright).
+- Every feature ships **Vitest unit/component tests** co-located with the source (`components/<name>.test.tsx`).
+- Commands: `yarn test` (run once), `yarn test:watch` (watch mode).
 - In unit tests, mock `window.Audio` and drive time with `vi.useFakeTimers()`. Never assert real audio playback — assert observable state only.
