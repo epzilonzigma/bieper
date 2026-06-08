@@ -18,6 +18,23 @@ yarn dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Testing
+
+Unit and component tests run on [Vitest](https://vitest.dev) + React Testing Library:
+
+```bash
+yarn test        # run the unit/component suite once
+yarn test:watch  # re-run on change
+```
+
+End-to-end tests run on [Playwright](https://playwright.dev) against a live dev server (which it starts for you). The first time, install the Chromium browser — and, on Linux, its system libraries:
+
+```bash
+yarn playwright install chromium  # one-time: download the browser
+sudo yarn playwright install-deps # one-time (Linux): install system libraries
+yarn test:e2e                     # run the end-to-end suite
+```
+
 
 ## Design assets
 

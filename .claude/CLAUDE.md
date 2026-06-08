@@ -23,6 +23,15 @@ A timer app for combat sports training. Currently at the scaffold stage — the 
 - `yarn build` — production build
 - `yarn start` — run the production build
 - `yarn lint` — run ESLint
+- `yarn test` — run Vitest unit/component tests once
+- `yarn test:watch` — Vitest in watch mode
+- `yarn test:e2e` — run the Playwright E2E suite
+
+# Testing
+
+- Every feature ships **Vitest unit/component tests** co-located with the source (`components/<name>.test.tsx`) **and** a **Playwright E2E spec** under `e2e/`. Config lives in `vitest.config.ts` / `vitest.setup.ts` and `playwright.config.ts`.
+- Mock `window.Audio` and drive time with `vi.useFakeTimers()` in unit tests; never assert real audio playback — assert observable state (rendered digits, `disabled`, the `src` passed to `Audio`).
+- Playwright runs Chromium only; its `webServer` launches `yarn dev` (never `build`/`start`).
 
 # Repository layout
 

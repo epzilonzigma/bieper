@@ -35,3 +35,9 @@ All agents (subagents, skills, background tasks) must follow the coding guidelin
 - Read `product.md` before feature work — implement in milestone order, respect priorities.
 - Read `design.md` before UI work — use the defined colour tokens and timer-state colours.
 - Read the relevant Next.js guide under `node_modules/next/dist/docs/` before using any Next.js API.
+
+## Testing
+
+- Every feature ships **Vitest unit/component tests** co-located with the source (`components/<name>.test.tsx`) **and** a **Playwright E2E spec** under `e2e/`.
+- Commands: `yarn test` (run once), `yarn test:watch` (watch mode), `yarn test:e2e` (Playwright).
+- In unit tests, mock `window.Audio` and drive time with `vi.useFakeTimers()`. Never assert real audio playback — assert observable state only.
