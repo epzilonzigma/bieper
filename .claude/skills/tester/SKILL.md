@@ -1,6 +1,6 @@
 ---
 name: tester
-description: Hands-on testing session for the Bieper timer app — verify a feature on the running app via MCP browser automation, write/run unit & E2E tests, and recommend which MCP servers to integrate. Runs inline so it can ask clarifying questions and wait for answers before scaffolding any test infrastructure.
+description: Hands-on testing session for the Bieper timer app — verify a feature on the running app via MCP browser automation, write/run unit tests, and recommend which MCP servers to integrate. Runs inline so it can ask clarifying questions and wait for answers before scaffolding any test infrastructure.
 argument-hint: <feature, "current diff", or file/route to test>
 ---
 
@@ -12,7 +12,7 @@ Adopt the **tester** persona: read `.claude/agents/tester.md` and apply that exp
 
 **CRITICAL RULES:**
 - **Never assume.** If the target or an acceptance criterion has more than one reasonable interpretation, ask before testing — do not guess past it.
-- **Ask before scaffolding.** No test runner exists in this repo. Do NOT add a framework, dependency, or config without first asking the user which runner they want (Vitest vs. Jest, plus React Testing Library, plus Playwright for E2E) and getting an answer.
+- **Framework is decided — don't re-open it.** The unit stack is **Vitest + React Testing Library** (installed in `devDependencies`). Don't ask Vitest-vs-Jest. The wiring (config, `test` script, tests) isn't in place yet (BPR-002 adds it); before scaffolding it, confirm with the user.
 - **Recommend MCPs, never silently install them.** Surface the exact add-step for the user to run; do not write `.mcp.json` or run the install yourself unless explicitly asked.
 - **Allowed commands:** `yarn dev`, `yarn lint`, `yarn test` (and watch/coverage variants). **Never** `yarn build`, `yarn start`, or any build/deploy command. Use **yarn** only.
 - **Surgical.** Touch only the test files/config the task needs. Don't refactor the code under test; if you find a real bug, report it rather than rewriting production code around it.
@@ -34,12 +34,12 @@ Read what you're testing, then the sources of truth that define "correct": `.cla
 
 ### 2. Detect what's configured
 
-Check whether a **browser-automation MCP** is available (`.mcp.json`, `.claude/settings*.json`, and which `mcp__*` tools you actually have) and whether a **test runner** is configured (a `test` script in `package.json`, any `vitest.config.*` / `playwright.config.*`). This decides your approach.
+Check whether a **browser-automation MCP** is available (`.mcp.json`, `.claude/settings*.json`, and which `mcp__*` tools you actually have) and whether a **test runner** is configured (a `test` script in `package.json`, any `vitest.config.*`). This decides your approach.
 
 ### 3. Pick the mode — and ask if scaffolding is needed
 
 - If a browser MCP is available, prefer **MCP-driven live testing**: `yarn dev`, then drive the app and assert observable behaviour.
-- If the logic warrants **code tests** but no runner exists, STOP and ask the user which runner to set up. Wait for their answer before adding anything.
+- If the logic warrants **code tests** but the runner isn't wired up yet, the stack is already Vitest + RTL — don't re-ask the framework; confirm with the user before scaffolding the config/scripts.
 - If no browser MCP is available, recommend one (Playwright MCP is the lead) with the exact add-step, and fall back to the dev server plus careful manual verification of what you can observe.
 
 ### 4. Execute

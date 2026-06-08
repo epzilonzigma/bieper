@@ -46,3 +46,6 @@ next-env.d.ts
 
 # lessons
 .claude/lessons/*
+
+# scheduled tasks lock — local runtime state
+.claude/scheduled_tasks.lock

@@ -16,7 +16,7 @@ const cues: Cue[] = [
 
 type Status = "idle" | "playing" | "missing";
 
-export function AudioPreview() {
+export const AudioPreview = () => {
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const audiosRef = useRef<Record<string, HTMLAudioElement>>({});
 
@@ -74,4 +74,4 @@ export function AudioPreview() {
       </p>
     </div>
   );
-}
+};

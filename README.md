@@ -18,6 +18,15 @@ yarn dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Testing
+
+Unit and component tests run on [Vitest](https://vitest.dev) + React Testing Library:
+
+```bash
+yarn test        # run the unit/component suite once
+yarn test:watch  # re-run on change
+```
+
 
 ## Design assets
 
