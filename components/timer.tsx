@@ -15,18 +15,18 @@ const digitColor: Record<Status, string> = {
   stopped: "text-timer-stopped",
 };
 
-function formatTime(total: number) {
+const formatTime = (total: number) => {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
+};
 
-function play(src: string) {
+const play = (src: string) => {
   const audio = new Audio(src);
   audio.play().catch(() => {});
-}
+};
 
-export function Timer() {
+export const Timer = () => {
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [remaining, setRemaining] = useState(0);
@@ -39,28 +39,28 @@ export function Timer() {
   const configuredTotal = minutes * 60 + seconds;
   const isRunning = status === "running";
 
-  function clearTick() {
+  const clearTick = () => {
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  }
+  };
 
-  function clearDoneTimeout() {
+  const clearDoneTimeout = () => {
     if (doneTimeoutRef.current !== null) {
       clearTimeout(doneTimeoutRef.current);
       doneTimeoutRef.current = null;
     }
-  }
+  };
 
-  function stopStartAudio() {
+  const stopStartAudio = () => {
     if (startAudioRef.current !== null) {
       startAudioRef.current.pause();
       startAudioRef.current = null;
     }
-  }
+  };
 
-  function beginTick() {
+  const beginTick = () => {
     clearTick();
     intervalRef.current = setInterval(() => {
       remainingRef.current -= 1;
@@ -75,7 +75,7 @@ export function Timer() {
         }, 1000);
       }
     }, 1000);
-  }
+  };
 
   useEffect(() => {
     return () => {
@@ -85,21 +85,21 @@ export function Timer() {
     };
   }, []);
 
-  function handleMinutes(value: string) {
+  const handleMinutes = (value: string) => {
     const parsed = Math.max(0, Math.floor(Number(value) || 0));
     setMinutes(parsed);
     setRemaining(parsed * 60 + seconds);
     setStatus("idle");
-  }
+  };
 
-  function handleSeconds(value: string) {
+  const handleSeconds = (value: string) => {
     const parsed = Math.min(59, Math.max(0, Math.floor(Number(value) || 0)));
     setSeconds(parsed);
     setRemaining(minutes * 60 + parsed);
     setStatus("idle");
-  }
+  };
 
-  function handleStart() {
+  const handleStart = () => {
     remainingRef.current = configuredTotal;
     setRemaining(configuredTotal);
     setStatus("running");
@@ -116,16 +116,16 @@ export function Timer() {
       startAudioRef.current = null;
       beginTick();
     });
-  }
+  };
 
-  function handleReset() {
+  const handleReset = () => {
     clearTick();
     clearDoneTimeout();
     stopStartAudio();
     setStatus("idle");
     setRemaining(configuredTotal);
     play("/audio/interval.mp3");
-  }
+  };
 
   return (
     <Card className="w-full max-w-sm">
@@ -187,4 +187,4 @@ export function Timer() {
       </CardContent>
     </Card>
   );
-}
+};

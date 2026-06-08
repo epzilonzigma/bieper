@@ -12,7 +12,7 @@ Adopt the **tester** persona: read `.claude/agents/tester.md` and apply that exp
 
 **CRITICAL RULES:**
 - **Never assume.** If the target or an acceptance criterion has more than one reasonable interpretation, ask before testing — do not guess past it.
-- **Ask before scaffolding.** No test runner exists in this repo. Do NOT add a framework, dependency, or config without first asking the user which runner they want (Vitest vs. Jest, plus React Testing Library, plus Playwright for E2E) and getting an answer.
+- **Framework is decided — don't re-open it.** The unit stack is **Vitest + React Testing Library** (installed in `devDependencies`); **Playwright** is the planned E2E tool (not yet installed). Don't ask Vitest-vs-Jest. The wiring (config, `test` script, tests) isn't in place yet (BPR-002 adds it); before scaffolding it or adding the Playwright dependency, confirm with the user, then follow the BPR-002 conventions.
 - **Recommend MCPs, never silently install them.** Surface the exact add-step for the user to run; do not write `.mcp.json` or run the install yourself unless explicitly asked.
 - **Allowed commands:** `yarn dev`, `yarn lint`, `yarn test` (and watch/coverage variants). **Never** `yarn build`, `yarn start`, or any build/deploy command. Use **yarn** only.
 - **Surgical.** Touch only the test files/config the task needs. Don't refactor the code under test; if you find a real bug, report it rather than rewriting production code around it.
@@ -39,7 +39,7 @@ Check whether a **browser-automation MCP** is available (`.mcp.json`, `.claude/s
 ### 3. Pick the mode — and ask if scaffolding is needed
 
 - If a browser MCP is available, prefer **MCP-driven live testing**: `yarn dev`, then drive the app and assert observable behaviour.
-- If the logic warrants **code tests** but no runner exists, STOP and ask the user which runner to set up. Wait for their answer before adding anything.
+- If the logic warrants **code tests** but the runner isn't wired up yet, the stack is already Vitest + RTL (and Playwright for E2E) — don't re-ask the framework; confirm with the user before scaffolding the config/scripts (or installing Playwright), then follow the BPR-002 conventions.
 - If no browser MCP is available, recommend one (Playwright MCP is the lead) with the exact add-step, and fall back to the dev server plus careful manual verification of what you can observe.
 
 ### 4. Execute

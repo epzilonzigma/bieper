@@ -135,6 +135,9 @@ The design palette and UI guidelines live in `.claude/docs/design.md`. Read it b
 
 - **Audio assets.** Timer sound cues live in `public/audio/` and are played from client components via `new Audio('/audio/<file>.mp3')`. Use kebab-case `.mp3` filenames named after the cue's purpose (`timer-start.mp3`, `timer-end.mp3`, `interval.mp3`). Don't import audio through the bundler — reference it by its public URL.
 - Use the `@/*` path alias for imports from the project root rather than long relative paths.
+- **Arrow functions.** Prefer `const` arrow functions over `function` declarations for all project-authored code — components, helpers, and default exports. For a default export, assign to a named `const` first, then `export default Name` (preserves the component's display name). shadcn primitives under `components/ui/*` are exempt — leave their `function` declarations as the CLI generates them.
+- **`type` over `interface`.** Prefer `type` aliases over `interface` declarations for object shapes and props.
+- **`async`/`await` over `.then()`.** Prefer `async`/`await` over Promise `.then()`/`.catch()` chains.
 - Keep global styling in `app/globals.css` using Tailwind v4's `@theme` — no JS config file.
 - Place route segments under `app/` following App Router conventions — but verify the exact conventions against `node_modules/next/dist/docs/` before introducing new patterns, since this Next.js version may differ from what you remember.
 - Don't create `README`/docs files unless explicitly asked.

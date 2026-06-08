@@ -49,7 +49,7 @@ const timerStates: Swatch[] = [
   { name: "React", hex: "#8B5CF6", cssVar: "--timer-react", usage: "Reaction cue flash" },
 ];
 
-function SwatchCard({ swatch }: { swatch: Swatch }) {
+const SwatchCard = ({ swatch }: { swatch: Swatch }) => {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <div
@@ -72,9 +72,9 @@ function SwatchCard({ swatch }: { swatch: Swatch }) {
       </div>
     </div>
   );
-}
+};
 
-function Section({
+const Section = ({
   title,
   intent,
   children,
@@ -82,7 +82,7 @@ function Section({
   title: string;
   intent: string;
   children: React.ReactNode;
-}) {
+}) => {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -94,9 +94,9 @@ function Section({
       {children}
     </section>
   );
-}
+};
 
-export default function DesignSystemPage() {
+const DesignSystemPage = () => {
   return (
     <div className="min-h-full w-full bg-background text-foreground">
       <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-12 sm:px-10">
@@ -445,4 +445,6 @@ export default function DesignSystemPage() {
       </div>
     </div>
   );
-}
+};
+
+export default DesignSystemPage;
