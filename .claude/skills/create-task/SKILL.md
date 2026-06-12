@@ -16,6 +16,7 @@ You are acting as a product manager's assistant. Your job is to take a task desc
 - You MUST write acceptance criteria that are testable and verifiable — no vague outcomes.
 - You MUST include enough context that an agent with no prior conversation history can implement the task from the file alone.
 - You MUST run a self-review on the generated task file before presenting it to the user (see step 6).
+- You MUST run a question pass (see step 7) after the draft is written and self-reviewed — surfacing every still-open decision and resolving it with the user **one question at a time** — before the task is marked `ready`. This pass also runs whenever you revisit an existing draft.
 
 ## Input
 
@@ -157,16 +158,43 @@ After writing the file, re-read it and evaluate it against the following checkli
 - [ ] Every definition-of-done item is a pass/fail assertion verifiable by: running the app in a browser, inspecting the DOM, running `yarn lint`, or running a test.
 - [ ] No definition-of-done item requires subjective judgement ("looks good", "feels responsive", "works correctly").
 
-If any check fails, fix the task file before proceeding. If fixing requires information you don't have, add the question to the list you present to the user in step 7.
+If any check fails, fix the task file before proceeding. If fixing requires information you don't have, carry the question into the step 7 question pass.
 
-### 7. Present the task to the user
+### 7. Question pass — resolve open decisions one at a time
 
-After the self-review passes, show the user:
+A draft is not "ready" just because it has been written and self-reviewed. Before presenting it for sign-off, deliberately surface every decision that is still genuinely open and resolve each with the user **one question at a time**. (This mirrors the BPR-003 → BPR-006 question passes.)
+
+**a. Re-read the finished draft with fresh eyes** — as if someone else wrote it — and sort what you find into three buckets:
+- **Genuinely-open design decisions** you settled by assumption and never confirmed: UX presentation (e.g. two checkboxes vs. a single mode selector), behaviour at edges (start / end / zero boundaries), accessibility (e.g. `prefers-reduced-motion`), audio/visual choices, default values, and when controls are editable.
+- **Cross-task / cross-doc ripples** — would a decision here change another `BPR-###` task, `product.md`, or `design.md`? Identify the blast radius *before* asking, so you can warn the user.
+- **Editorial staleness** — feature names, cross-references, or quoted text that has drifted from the current `product.md` or sibling tasks.
+
+**b. Be honest when there are no substantive blanks.** If the draft is genuinely complete and only awaits sign-off, say so plainly ("This task has no unfilled decisions; it is `draft` only for lack of approval") — do **not** manufacture questions.
+
+**c. Prompt one question at a time** with the AskUserQuestion tool — wait for each answer before asking the next. For each question:
+- State what the current draft assumes.
+- Offer 2–4 concrete options, recommended default first (usually the draft's current choice, or the most sensible one).
+- Use option previews (ASCII mockups, before/after) when the choice is visual or structural.
+- Explicitly call out any ripple into other tasks or docs so the user understands the consequence of their choice.
+
+Reserve separate questions for **substantive** decisions; bundle pure editorial fixes into a single "refresh stale wording?" confirmation.
+
+**d. Do not re-litigate settled decisions** — labels, earlier answers, and anything the user has already chosen are not open.
+
+**e. Apply each answer immediately** with surgical edits. When an answer ripples, update the affected sibling tasks **and** `product.md` / `design.md` in the same pass so the documents never contradict one another, and re-run the relevant step 6 self-review checks on every changed section.
+
+**This pass also runs when revisiting an existing draft.** If the user later asks "what's keeping BPR-### in draft?" or "do the same for BPR-###", re-run this question pass against the **current** state of the repo — sibling tasks and `product.md` may have changed since the draft was written, creating new open items or staleness.
+
+Only once this pass is complete should you move to step 8.
+
+### 8. Present the task to the user
+
+After the question pass is complete, show the user:
 - The file path and BPR number.
-- A brief summary of what the task covers.
-- Any remaining questions from the self-review that you could not resolve on your own.
+- A brief summary of what the task covers, including the decisions just resolved in the question pass.
+- Any questions that still remain (ideally none).
 - Ask if they want to adjust scope, requirements, acceptance criteria, or priority before marking it `ready`.
 
-### 8. Finalise
+### 9. Finalise
 
-If the user approves, set the status to `ready`. If they request changes, update the file accordingly — but do not add anything the user did not ask for. After any edits, re-run the self-review (step 6) on the changed sections to ensure the updates don't introduce new issues.
+If the user approves, set the status to `ready`. If they request changes, update the file accordingly — but do not add anything the user did not ask for. After any edits, re-run the self-review (step 6) and, for any newly-opened decision, the question pass (step 7) on the changed sections to ensure the updates don't introduce new issues.
