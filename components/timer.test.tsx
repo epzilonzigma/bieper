@@ -93,15 +93,15 @@ describe("Timer", () => {
     }
   });
 
-  test("3.3 marks completion with stopped colour, stop cue, enabled inputs", async () => {
+  test("3.3 marks completion with idle colour, stop cue, enabled inputs", async () => {
     render(<Timer />);
     setDuration(0, 5);
     await start();
 
-    advance(5000); // exactly five ticks -> 00:00, before the 1000ms idle reset
+    advance(5000); // exactly five ticks -> 00:00 (completion returns to idle)
 
     const digits = screen.getByText("00:00");
-    expect(digits).toHaveClass("text-timer-stopped");
+    expect(digits).toHaveClass("text-timer-idle");
     expect(constructedSrcs).toContain("/audio/timer-stop.mp3");
     expect(minutesInput()).toBeEnabled();
     expect(secondsInput()).toBeEnabled();
@@ -117,9 +117,9 @@ describe("Timer", () => {
     expect(screen.getByText("00:59")).toBeInTheDocument();
   });
 
-  test("3.5 disables Start when empty and while running", async () => {
+  test("3.5 enables Start regardless of duration, disables only while running", async () => {
     render(<Timer />);
-    expect(startButton()).toBeDisabled();
+    expect(startButton()).toBeEnabled();
 
     setDuration(0, 5);
     expect(startButton()).toBeEnabled();
@@ -142,13 +142,17 @@ describe("Timer", () => {
     expect(secondsInput()).toBeEnabled();
   });
 
-  test("3.7 reset restores configured duration, keeps inputs, plays interval cue", async () => {
+  test("3.7 reset restores configured duration after completion, plays interval cue", async () => {
     render(<Timer />);
     setDuration(0, 5);
     await start();
-    advance(2000); // 00:03
-    expect(screen.getByText("00:03")).toBeInTheDocument();
 
+    expect(resetButton()).toBeDisabled(); // disabled while running
+
+    advance(5000); // countdown completes -> 00:00, idle
+    expect(screen.getByText("00:00")).toBeInTheDocument();
+
+    expect(resetButton()).toBeEnabled();
     fireEvent.click(resetButton());
 
     expect(screen.getByText("00:05")).toBeInTheDocument();
@@ -164,33 +168,34 @@ describe("Timer", () => {
     await start();
     expect(constructedSrcs).toContain("/audio/timer-start.mp3");
 
-    fireEvent.click(resetButton());
-    expect(constructedSrcs).toContain("/audio/interval.mp3");
-
-    await start();
     advance(1000); // completes
     expect(constructedSrcs).toContain("/audio/timer-stop.mp3");
+
+    fireEvent.click(resetButton()); // idle now, reset enabled
+    expect(constructedSrcs).toContain("/audio/interval.mp3");
   });
 
-  test("3.9 clears the interval after reset", async () => {
+  test("3.9 reset is disabled while running and does not interrupt the countdown", async () => {
     render(<Timer />);
     setDuration(0, 5);
     await start();
     advance(2000); // 00:03
-    fireEvent.click(resetButton());
-    expect(screen.getByText("00:05")).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
 
-    advance(5000); // no ticks should fire after reset
-    expect(screen.getByText("00:05")).toBeInTheDocument();
+    expect(resetButton()).toBeDisabled();
+    fireEvent.click(resetButton()); // no-op while running
+
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+    advance(1000); // countdown keeps ticking
+    expect(screen.getByText("00:02")).toBeInTheDocument();
   });
 
-  test("3.9 clears the interval after completion", async () => {
+  test("3.10 clears the interval after completion", async () => {
     render(<Timer />);
     setDuration(0, 2);
     await start();
 
-    advance(2000); // reaches 00:00 (stopped)
-    advance(1000); // idle reset fires
+    advance(2000); // reaches 00:00 and stops
     expect(screen.getByText("00:00")).toBeInTheDocument();
 
     advance(5000); // nothing further should change the display
