@@ -15,9 +15,9 @@ const digitColor: Record<Status, string> = {
   stopped: "text-timer-stopped",
 };
 
-const formatTime = (total: number) => {
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
+const formatTime = (timeInSeconds: number) => {
+  const minutes = Math.floor(timeInSeconds / 60);
+  const seconds = timeInSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
@@ -32,31 +32,15 @@ export const Timer = () => {
   const [remaining, setRemaining] = useState(0);
   const [status, setStatus] = useState<Status>("idle");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const doneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remainingRef = useRef(0);
-  const startAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const configuredTotal = minutes * 60 + seconds;
-  const isRunning = status === "running";
+  const configuredTotal = minutes * 60 + seconds; // what value to count down from?
+  const isRunning = status === "running"; 
 
   const clearTick = () => {
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
-    }
-  };
-
-  const clearDoneTimeout = () => {
-    if (doneTimeoutRef.current !== null) {
-      clearTimeout(doneTimeoutRef.current);
-      doneTimeoutRef.current = null;
-    }
-  };
-
-  const stopStartAudio = () => {
-    if (startAudioRef.current !== null) {
-      startAudioRef.current.pause();
-      startAudioRef.current = null;
     }
   };
 
@@ -67,12 +51,8 @@ export const Timer = () => {
       setRemaining(remainingRef.current);
       if (remainingRef.current <= 0) {
         clearTick();
-        setStatus("stopped");
         play("/audio/timer-stop.mp3");
-        doneTimeoutRef.current = setTimeout(() => {
-          setStatus("idle");
-          doneTimeoutRef.current = null;
-        }, 1000);
+        setStatus("idle");
       }
     }, 1000);
   };
@@ -80,8 +60,6 @@ export const Timer = () => {
   useEffect(() => {
     return () => {
       clearTick();
-      clearDoneTimeout();
-      stopStartAudio();
     };
   }, []);
 
@@ -104,25 +82,21 @@ export const Timer = () => {
     setRemaining(configuredTotal);
     setStatus("running");
     clearTick();
-    clearDoneTimeout();
     // Start the countdown only once the start bell has finished playing.
     const audio = new Audio("/audio/timer-start.mp3");
-    startAudioRef.current = audio;
     audio.addEventListener("ended", () => {
-      startAudioRef.current = null;
       beginTick();
     });
-    audio.play().catch(() => {
-      startAudioRef.current = null;
+    audio.play().catch((err) => {
+      console.log(err);
       beginTick();
     });
   };
 
   const handleReset = () => {
     clearTick();
-    clearDoneTimeout();
-    stopStartAudio();
     setStatus("idle");
+    remainingRef.current = configuredTotal;
     setRemaining(configuredTotal);
     play("/audio/interval.mp3");
   };
@@ -171,7 +145,7 @@ export const Timer = () => {
             className="flex-1"
             size="lg"
             onClick={handleStart}
-            disabled={configuredTotal === 0 || isRunning}
+            disabled={isRunning}
           >
             Start
           </Button>
@@ -180,6 +154,7 @@ export const Timer = () => {
             size="lg"
             variant="destructive"
             onClick={handleReset}
+            disabled={isRunning}
           >
             Reset
           </Button>
