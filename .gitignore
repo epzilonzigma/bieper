@@ -49,3 +49,6 @@ next-env.d.ts
 
 # scheduled tasks lock — local runtime state
 .claude/scheduled_tasks.lock
+
+# Playwright tests
+.playwright-mcp/*
