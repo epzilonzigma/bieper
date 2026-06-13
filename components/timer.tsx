@@ -7,12 +7,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Status = "idle" | "running" | "stopped";
+type Status = "idle" | "running" | "paused";
 
 const digitColor: Record<Status, string> = {
   idle: "text-timer-idle",
   running: "text-timer-active",
-  stopped: "text-timer-stopped",
+  paused: "text-timer-paused",
 };
 
 const formatTime = (timeInSeconds: number) => {
@@ -23,7 +23,7 @@ const formatTime = (timeInSeconds: number) => {
 
 const play = (src: string) => {
   const audio = new Audio(src);
-  audio.play().catch(() => {});
+  audio.play().catch((err) => {console.log(err)});
 };
 
 export const Timer = () => {
@@ -77,12 +77,11 @@ export const Timer = () => {
     setStatus("idle");
   };
 
-  const handleStart = () => {
-    remainingRef.current = configuredTotal;
-    setRemaining(configuredTotal);
+  // Play the start bell and begin ticking only once it has finished. Shared by
+  // Start and Resume; only Start seeds remainingRef from the configured duration.
+  const startBellThenTick = () => {
     setStatus("running");
     clearTick();
-    // Start the countdown only once the start bell has finished playing.
     const audio = new Audio("/audio/timer-start.mp3");
     audio.addEventListener("ended", () => {
       beginTick();
@@ -91,6 +90,22 @@ export const Timer = () => {
       console.log(err);
       beginTick();
     });
+  };
+
+  const handleStart = () => {
+    remainingRef.current = configuredTotal;
+    setRemaining(configuredTotal);
+    startBellThenTick();
+  };
+
+  const handlePause = () => {
+    clearTick();
+    setStatus("paused");
+    play("/audio/interval.mp3");
+  };
+
+  const handleResume = () => {
+    startBellThenTick();
   };
 
   const handleReset = () => {
@@ -119,7 +134,7 @@ export const Timer = () => {
               min={0}
               placeholder="0"
               value={minutes === 0 ? "" : minutes}
-              disabled={isRunning}
+              disabled={status !== "idle"}
               onChange={(e) => handleMinutes(e.target.value)}
             />
           </div>
@@ -134,7 +149,7 @@ export const Timer = () => {
               max={59}
               placeholder="0"
               value={seconds === 0 ? "" : seconds}
-              disabled={isRunning}
+              disabled={status !== "idle"}
               onChange={(e) => handleSeconds(e.target.value)}
             />
           </div>
@@ -144,10 +159,19 @@ export const Timer = () => {
           <Button
             className="flex-1"
             size="lg"
-            onClick={handleStart}
-            disabled={isRunning}
+            onClick={
+              status === "running"
+                ? handlePause
+                : status === "paused"
+                  ? handleResume
+                  : handleStart
+            }
           >
-            Start
+            {status === "running"
+              ? "Pause"
+              : status === "paused"
+                ? "Resume"
+                : "Start"}
           </Button>
           <Button
             className="flex-1"

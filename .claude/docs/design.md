@@ -65,7 +65,7 @@ Used in client components for visual feedback during training:
 | Ready          | Amber           | `#F59E0B` | Countdown before round starts        |
 | Active         | Emerald         | `#10B981` | Round in progress                    |
 | Rest           | Cyan            | `#06B6D4` | Rest interval between rounds         |
-| Stopped        | Red             | `#EF4444` | Timer paused or ended                |
+| Paused         | Red             | `#EF4444` | Timer paused                         |
 | React          | Vivid Violet    | `#8B5CF6` | Reaction cue flash                   |
 
 ### Typography

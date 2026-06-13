@@ -52,7 +52,7 @@
   --color-timer-ready: var(--timer-ready);
   --color-timer-active: var(--timer-active);
   --color-timer-rest: var(--timer-rest);
-  --color-timer-stopped: var(--timer-stopped);
+  --color-timer-paused: var(--timer-paused);
   --color-timer-react: var(--timer-react);
 
   /* Extra accent tokens */
@@ -100,7 +100,7 @@
   --timer-ready: #F59E0B;
   --timer-active: #10B981;
   --timer-rest: #06B6D4;
-  --timer-stopped: #EF4444;
+  --timer-paused: #EF4444;
   --timer-react: #8B5CF6;
 
   /* Extra accent tokens */

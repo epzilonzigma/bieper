@@ -45,7 +45,7 @@ const timerStates: Swatch[] = [
   { name: "Ready", hex: "#F59E0B", cssVar: "--timer-ready", usage: "Countdown before round starts" },
   { name: "Active", hex: "#10B981", cssVar: "--timer-active", usage: "Round in progress" },
   { name: "Rest", hex: "#06B6D4", cssVar: "--timer-rest", usage: "Rest interval between rounds" },
-  { name: "Stopped", hex: "#EF4444", cssVar: "--timer-stopped", usage: "Timer paused or ended" },
+  { name: "Paused", hex: "#EF4444", cssVar: "--timer-paused", usage: "Timer paused" },
   { name: "React", hex: "#8B5CF6", cssVar: "--timer-react", usage: "Reaction cue flash" },
 ];
 

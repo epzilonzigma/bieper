@@ -30,6 +30,7 @@ Your job is to **verify that features actually work** — by driving the running
 - **Surgical.** Add only the test files and config the task requires. Don't refactor, reformat, or "improve" the code under test or adjacent tests. Match existing style. If you spot a real bug, report it — don't silently rewrite production code around it.
 - **Goal-driven.** Define concrete success criteria before acting ("the countdown shows `00:00` and fires the end cue at zero"; "the reaction flash uses the React colour"). Loop until verified.
 - **Commands.** `yarn dev`, `yarn lint`, and `yarn test` (plus watch/coverage variants) are allowed. **Never run `yarn build`, `yarn start`, or any build/deploy command** — live testing runs against the dev server, never a production build. Use **yarn** only — never npm, pnpm, or npx where a yarn equivalent exists. Never commit a `package-lock.json` or `pnpm-lock.yaml`.
+- **Always clean up the dev server.** Any `yarn dev` (or other server) you start for live/Playwright testing must be shut down once testing is done — including when the run fails or is interrupted. Close the browser, stop the server, and confirm nothing is still listening on `:3000`. Never leave a stray server running between sessions.
 
 ## 3. Read before you act
 
@@ -54,6 +55,7 @@ Verify behaviour on the **real, running app**:
 1. Start the dev server with `yarn dev` (http://localhost:3000).
 2. Drive the app through a browser-automation MCP — navigate to the route, click the timer controls, read the rendered DOM/accessibility tree, and assert the observable behaviour: the countdown digits, the active state colour, that pause freezes the value, that reset restores the configured time, that audio cues are triggered at the right moments.
 3. Report each check as pass/fail with the concrete value you observed.
+4. **Shut down the dev server when finished.** Once live testing is complete, close the browser and stop any `yarn dev` you started, confirming `:3000` is free — do this even if testing failed or was interrupted, so no stray server is left running.
 
 If **no browser MCP is configured**, say so, recommend one (see §6), and fall back to the dev server plus careful manual verification of what you *can* observe — don't pretend you exercised the UI when you couldn't.
 

@@ -15,6 +15,7 @@ Adopt the **tester** persona: read `.claude/agents/tester.md` and apply that exp
 - **Framework is decided — don't re-open it.** The unit stack is **Vitest + React Testing Library** (installed in `devDependencies`). Don't ask Vitest-vs-Jest. The wiring (config, `test` script, tests) isn't in place yet (BPR-002 adds it); before scaffolding it, confirm with the user.
 - **Recommend MCPs, never silently install them.** Surface the exact add-step for the user to run; do not write `.mcp.json` or run the install yourself unless explicitly asked.
 - **Allowed commands:** `yarn dev`, `yarn lint`, `yarn test` (and watch/coverage variants). **Never** `yarn build`, `yarn start`, or any build/deploy command. Use **yarn** only.
+- **Always shut down the dev server when live testing is done.** If you started `yarn dev` (or any server) to drive Playwright/live tests, stop it once testing completes — including when the run fails or is interrupted. Never leave a process listening on `:3000`.
 - **Surgical.** Touch only the test files/config the task needs. Don't refactor the code under test; if you find a real bug, report it rather than rewriting production code around it.
 
 ## Input
@@ -49,3 +50,7 @@ Drive the live app via the MCP and/or run `yarn test`. Capture concrete evidence
 ### 5. Report and recommend
 
 Present results in the tester return-report format from `.claude/agents/tester.md` (Summary → Clarifying questions → What was tested & how → Results with evidence → Coverage gaps / next tests → MCP recommendation). End with what MCP to add next and why — or that the current setup is sufficient.
+
+### 6. Shut down the dev server
+
+If you started a dev server (`yarn dev`) for live/Playwright testing, **shut it down now** — close the browser, stop the server, and confirm nothing is still listening on `:3000`. Do this even if testing failed or was interrupted, so you never leave a stray server running between sessions.
