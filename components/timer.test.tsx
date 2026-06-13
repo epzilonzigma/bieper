@@ -48,6 +48,8 @@ afterEach(() => {
 const minutesInput = () => screen.getByLabelText("Minutes");
 const secondsInput = () => screen.getByLabelText("Seconds");
 const startButton = () => screen.getByRole("button", { name: "Start" });
+const pauseButton = () => screen.getByRole("button", { name: "Pause" });
+const resumeButton = () => screen.getByRole("button", { name: "Resume" });
 const resetButton = () => screen.getByRole("button", { name: "Reset" });
 
 const setDuration = (min: number, sec: number) => {
@@ -59,6 +61,15 @@ const setDuration = (min: number, sec: number) => {
 const start = async () => {
   await act(async () => {
     fireEvent.click(startButton());
+    await Promise.resolve();
+  });
+};
+
+// Click Resume, then flush the rejected play() microtask so beginTick() runs
+// from the resume bell's play().catch — same gating as start().
+const resume = async () => {
+  await act(async () => {
+    fireEvent.click(resumeButton());
     await Promise.resolve();
   });
 };
@@ -117,7 +128,7 @@ describe("Timer", () => {
     expect(screen.getByText("00:59")).toBeInTheDocument();
   });
 
-  test("3.5 enables Start regardless of duration, disables only while running", async () => {
+  test("3.5 the primary toggle is enabled regardless of duration and becomes Pause while running", async () => {
     render(<Timer />);
     expect(startButton()).toBeEnabled();
 
@@ -125,7 +136,7 @@ describe("Timer", () => {
     expect(startButton()).toBeEnabled();
 
     await start();
-    expect(startButton()).toBeDisabled();
+    expect(pauseButton()).toBeEnabled();
   });
 
   test("3.6 disables inputs while running, re-enables on completion", async () => {
@@ -200,5 +211,131 @@ describe("Timer", () => {
 
     advance(5000); // nothing further should change the display
     expect(screen.getByText("00:00")).toBeInTheDocument();
+  });
+
+  test("3.11 pause freezes the display and clears the interval", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    await start();
+    advance(2000); // 00:03
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+
+    fireEvent.click(pauseButton());
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+
+    advance(5000); // no tick should be running
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+  });
+
+  test("3.12 paused digits use the paused (red) colour", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    await start();
+    advance(2000); // 00:03
+
+    fireEvent.click(pauseButton());
+
+    expect(screen.getByText("00:03")).toHaveClass("text-timer-paused");
+  });
+
+  test("3.13 pause plays the interval cue", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    await start();
+    advance(1000);
+
+    fireEvent.click(pauseButton());
+
+    expect(constructedSrcs).toContain("/audio/interval.mp3");
+  });
+
+  test("3.14 resume continues from the frozen value, not the configured duration", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    await start();
+    advance(2000); // 00:03
+    fireEvent.click(pauseButton());
+
+    await resume();
+
+    for (const expected of ["00:02", "00:01", "00:00"]) {
+      advance(1000);
+      expect(screen.getByText(expected)).toBeInTheDocument();
+    }
+  });
+
+  test("3.15 resume plays the start bell again", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    await start();
+    advance(2000);
+    fireEvent.click(pauseButton());
+
+    await resume();
+
+    expect(
+      constructedSrcs.filter((src) => src === "/audio/timer-start.mp3"),
+    ).toHaveLength(2);
+  });
+
+  test("3.16 inputs are disabled while paused, editable again after reset", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    await start();
+    advance(1000);
+    fireEvent.click(pauseButton());
+
+    expect(minutesInput()).toBeDisabled();
+    expect(secondsInput()).toBeDisabled();
+
+    fireEvent.click(resetButton());
+
+    expect(minutesInput()).toBeEnabled();
+    expect(secondsInput()).toBeEnabled();
+  });
+
+  test("3.17 reset is enabled while paused and restores the configured duration", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    await start();
+    advance(2000); // 00:03
+    fireEvent.click(pauseButton());
+
+    expect(resetButton()).toBeEnabled();
+    fireEvent.click(resetButton());
+
+    const digits = screen.getByText("00:05");
+    expect(digits).toHaveClass("text-timer-idle");
+    expect(secondsInput()).toHaveValue(5);
+  });
+
+  test("3.18 completion after resume plays the stop cue and returns to idle", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    await start();
+    advance(1000); // 00:02
+    fireEvent.click(pauseButton());
+    await resume();
+
+    advance(2000); // 00:00
+
+    const digits = screen.getByText("00:00");
+    expect(digits).toHaveClass("text-timer-idle");
+    expect(constructedSrcs).toContain("/audio/timer-stop.mp3");
+    expect(minutesInput()).toBeEnabled();
+    expect(secondsInput()).toBeEnabled();
+  });
+
+  test("3.19 resume drives exactly one interval (no double-speed)", async () => {
+    render(<Timer />);
+    setDuration(0, 10);
+    await start();
+    advance(2000); // 00:08
+    fireEvent.click(pauseButton());
+    await resume();
+
+    advance(1000);
+
+    expect(screen.getByText("00:07")).toBeInTheDocument();
   });
 });
