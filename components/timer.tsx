@@ -7,10 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { isValidInterval } from "@/lib/timer-cues";
+import { isValidInterval, isValidRandomBounds, randomGap } from "@/lib/timer-cues";
 
 type Status = "idle" | "running" | "paused";
-type CueMode = "off" | "pace";
+type CueMode = "off" | "pace" | "random";
 
 const digitColor: Record<Status, string> = {
   idle: "text-timer-idle",
@@ -44,24 +44,41 @@ export const Timer = () => {
   const [status, setStatus] = useState<Status>("idle");
   const [cueMode, setCueMode] = useState<CueMode>("off");
   const [intervalSeconds, setIntervalSeconds] = useState(0);
+  const [lowerBound, setLowerBound] = useState(0);
+  const [upperBound, setUpperBound] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const remainingRef = useRef(0);
   // Cue settings the running tick reads. Seeded at Start only (controls are
   // locked while non-idle, so they cannot drift), which keeps the beep schedule
   // correct across pause/resume since `beginTick` re-runs but never re-seeds.
   const cueModeRef = useRef<CueMode>("off");
-  const intervalSecondsRef = useRef(0);
-  const totalRef = useRef(0);
+  const paceIntervalRef = useRef(0);
+  const lowerBoundRef = useRef(0);
+  const upperBoundRef = useRef(0);
+  // Seconds until the next cue fires. Shared by both cue modes: Pace reseeds it
+  // with the fixed interval, Random reseeds it with a fresh random gap.
+  const nextCueRef = useRef(0);
 
   const configuredTotal = minutes * 60 + seconds; // what value to count down from?
   const isRunning = status === "running";
   const paceInvalid =
     cueMode === "pace" && !isValidInterval(intervalSeconds, configuredTotal);
-  const paceError = !paceInvalid
+  // Only surface the message once the user has actually entered a value (a
+  // blank input reads as 0); selecting the mode alone never pops an error.
+  const paceError = !paceInvalid || intervalSeconds === 0
     ? null
     : configuredTotal < 2
       ? "Set a timer of at least 2 seconds to use Pace."
       : `Enter a whole number from 1 to ${configuredTotal - 1}.`;
+  const randomInvalid =
+    cueMode === "random" &&
+    !isValidRandomBounds(lowerBound, upperBound, configuredTotal);
+  const randomEntered = lowerBound !== 0 || upperBound !== 0;
+  const randomError = !randomInvalid || !randomEntered
+    ? null
+    : configuredTotal < 3
+      ? "Set a timer of at least 3 seconds to use Random."
+      : `Enter whole numbers with 1 ≤ Min < Max ≤ ${configuredTotal - 1}.`;
 
   const clearTick = () => {
     if (intervalRef.current !== null) {
@@ -79,12 +96,17 @@ export const Timer = () => {
         clearTick();
         play("/audio/timer-stop.mp3");
         setStatus("idle");
-      } else if (
-        cueModeRef.current === "pace" &&
-        isValidInterval(intervalSecondsRef.current, totalRef.current) &&
-        (totalRef.current - remainingRef.current) % intervalSecondsRef.current === 0
-      ) {
-        fireCue();
+      } else if (cueModeRef.current !== "off") {
+        // Single countdown shared by both cue modes; only the reseed differs.
+        // Sits after the completion guard, so no cue ever fires at 00:00.
+        nextCueRef.current -= 1;
+        if (nextCueRef.current === 0) {
+          fireCue();
+          nextCueRef.current =
+            cueModeRef.current === "pace"
+              ? paceIntervalRef.current
+              : randomGap(lowerBoundRef.current, upperBoundRef.current);
+        }
       }
     }, 1000);
   };
@@ -128,12 +150,27 @@ export const Timer = () => {
     setIntervalSeconds(Math.max(0, Math.floor(Number(value) || 0)));
   };
 
+  const handleLowerBound = (value: string) => {
+    setLowerBound(Math.max(0, Math.floor(Number(value) || 0)));
+  };
+
+  const handleUpperBound = (value: string) => {
+    setUpperBound(Math.max(0, Math.floor(Number(value) || 0)));
+  };
+
   const handleStart = () => {
     remainingRef.current = configuredTotal;
     setRemaining(configuredTotal);
     cueModeRef.current = cueMode;
-    intervalSecondsRef.current = intervalSeconds;
-    totalRef.current = configuredTotal;
+    paceIntervalRef.current = intervalSeconds;
+    lowerBoundRef.current = lowerBound;
+    upperBoundRef.current = upperBound;
+    nextCueRef.current =
+      cueMode === "pace"
+        ? intervalSeconds
+        : cueMode === "random"
+          ? randomGap(lowerBound, upperBound)
+          : 0;
     startBellThenTick();
   };
 
@@ -152,6 +189,7 @@ export const Timer = () => {
     setStatus("idle");
     remainingRef.current = configuredTotal;
     setRemaining(configuredTotal);
+    nextCueRef.current = 0;
     play("/audio/interval.mp3");
   };
 
@@ -215,6 +253,12 @@ export const Timer = () => {
                 Pace
               </Label>
             </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem id="cue-random" value="random" />
+              <Label htmlFor="cue-random" className="text-muted-foreground">
+                Random
+              </Label>
+            </div>
           </RadioGroup>
           {cueMode === "pace" ?
             <div className="flex flex-col gap-1.5">
@@ -241,13 +285,58 @@ export const Timer = () => {
             </div> :
             <div />
           }
+          {cueMode === "random" ?
+            <div className="flex flex-col gap-1.5">
+              <div className="flex gap-4">
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <Label htmlFor="random-min" className="text-muted-foreground">
+                    Min (sec)
+                  </Label>
+                  <Input
+                    id="random-min"
+                    type="number"
+                    min={1}
+                    placeholder="1"
+                    value={lowerBound === 0 ? "" : lowerBound}
+                    disabled={cueMode !== "random" || status !== "idle"}
+                    aria-invalid={randomInvalid}
+                    aria-describedby={randomError ? "random-error" : undefined}
+                    onChange={(e) => handleLowerBound(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <Label htmlFor="random-max" className="text-muted-foreground">
+                    Max (sec)
+                  </Label>
+                  <Input
+                    id="random-max"
+                    type="number"
+                    min={1}
+                    placeholder="2"
+                    value={upperBound === 0 ? "" : upperBound}
+                    disabled={cueMode !== "random" || status !== "idle"}
+                    aria-invalid={randomInvalid}
+                    aria-describedby={randomError ? "random-error" : undefined}
+                    onChange={(e) => handleUpperBound(e.target.value)}
+                  />
+                </div>
+              </div>
+              {randomError ?
+                <p id="random-error" className="text-sm text-destructive">
+                  {randomError}
+                </p> :
+                null
+              }
+            </div> :
+            <div />
+          }
         </div>
 
         <div className="flex w-full gap-4">
           <Button
             className="flex-1"
             size="lg"
-            disabled={paceInvalid}
+            disabled={paceInvalid || randomInvalid}
             onClick={
               status === "running"
                 ? handlePause
