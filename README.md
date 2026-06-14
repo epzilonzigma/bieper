@@ -1,16 +1,32 @@
 # Bieper
 
-This is a timer app for mainly combat sports training.
+Bieper is a timer app for combat-sports training — built for interval and reaction drills.
 
-## Getting Started
+## Tech stack
 
-First, install dependencies
+- **Next.js 16** (App Router) with **React 19**
+- **TypeScript 5** (strict mode), path alias `@/*` → project root
+- **Tailwind CSS v4** — CSS-first config; tokens live in `app/globals.css`, no `tailwind.config` file
+- **shadcn/ui** (`base-nova` style, `@base-ui/react` under the hood, lucide icons)
+- **Vitest** + React Testing Library for unit/component tests
+- **yarn 1.22 (classic)** as the package manager
+
+## Prerequisites
+
+- **Node.js 20 or newer**
+- **yarn 1.22 (classic)** — this project uses yarn only. Do not use `npm`, `pnpm`, or
+  `npx` where a yarn equivalent exists, and never commit a `package-lock.json` or
+  `pnpm-lock.yaml`.
+
+## Getting started
+
+Install dependencies:
 
 ```bash
 yarn install
 ```
 
-Then, run the development server
+Run the development server:
 
 ```bash
 yarn dev
@@ -18,15 +34,24 @@ yarn dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Testing
-
-Unit and component tests run on [Vitest](https://vitest.dev) + React Testing Library:
+### Additional commands
 
 ```bash
-yarn test        # run the unit/component suite once
-yarn test:watch  # re-run on change
+yarn build        # production build
+yarn start        # run the production build
+yarn lint         # run ESLint
+yarn test         # run the Vitest unit/component suite once
+yarn test:watch   # run Vitest in watch mode
 ```
 
+### Testing
+
+Every feature ships **Vitest unit/component tests** co-located with the source
+(`components/<name>.test.tsx`). Run `yarn test` (once) or `yarn test:watch` (watch mode).
+
+In timer tests, mock `window.Audio` and drive time with `vi.useFakeTimers()`. Never
+assert real audio playback — assert observable state only (rendered digits, `disabled`,
+the `src` passed to `Audio`).
 
 ## Design assets
 
