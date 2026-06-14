@@ -121,14 +121,12 @@ export const Timer = () => {
     const parsed = Math.max(0, Math.floor(Number(value) || 0));
     setMinutes(parsed);
     setRemaining(parsed * 60 + seconds);
-    setStatus("idle");
   };
 
   const handleSeconds = (value: string) => {
     const parsed = Math.min(59, Math.max(0, Math.floor(Number(value) || 0)));
     setSeconds(parsed);
     setRemaining(minutes * 60 + parsed);
-    setStatus("idle");
   };
 
   // Play the start bell and begin ticking only once it has finished. Shared by
