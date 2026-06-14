@@ -1,6 +1,10 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { isValidInterval } from "@/lib/timer-cues";
+import {
+  isValidInterval,
+  isValidRandomBounds,
+  randomGap,
+} from "@/lib/timer-cues";
 
 describe("isValidInterval", () => {
   // Whole-second intervals that fit strictly inside the configured total,
@@ -53,5 +57,66 @@ describe("isValidInterval", () => {
     [0, 0],
   ])("rejects interval %i against degenerate total %i", (interval, total) => {
     expect(isValidInterval(interval, total)).toBe(false);
+  });
+});
+
+describe("randomGap", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // The formula maps Math.random() === 0 to the lower bound and the value just
+  // below 1 to the upper bound, so both endpoints are reachable.
+  test("returns the lower bound when Math.random is 0", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(randomGap(2, 4)).toBe(2);
+  });
+
+  test("returns the upper bound when Math.random is just below 1", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.999999);
+    expect(randomGap(2, 4)).toBe(4);
+  });
+
+  // A mid-range value lands on an interior integer — guards against an off-by-one
+  // or sign error in the formula that the endpoints alone would not catch.
+  test("returns an interior value for a mid-range Math.random", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    expect(randomGap(2, 4)).toBe(3);
+  });
+
+  // Across the whole [0, 1) range the result is always an integer within bounds.
+  test("always returns an integer within [min, max]", () => {
+    for (const r of [0, 0.1, 0.25, 0.5, 0.75, 0.999999]) {
+      vi.spyOn(Math, "random").mockReturnValue(r);
+      const gap = randomGap(3, 7);
+      expect(Number.isInteger(gap)).toBe(true);
+      expect(gap).toBeGreaterThanOrEqual(3);
+      expect(gap).toBeLessThanOrEqual(7);
+    }
+  });
+});
+
+describe("isValidRandomBounds", () => {
+  // lower is a valid interval, upper is a whole number strictly above it and
+  // strictly inside the total — including the boundaries lower=1 and upper=total-1.
+  test.each([
+    [1, 2, 3],
+    [2, 5, 10],
+    [1, 9, 10],
+  ])("accepts lower %i, upper %i within total %i", (lower, upper, total) => {
+    expect(isValidRandomBounds(lower, upper, total)).toBe(true);
+  });
+
+  // Each invalid clause rejected independently.
+  test.each([
+    [0, 5, 10], // lower below the >= 1 floor
+    [3, 3, 10], // upper not strictly above lower
+    [5, 2, 10], // upper below lower
+    [2, 10, 10], // upper equals the total
+    [2, 11, 10], // upper above the total
+    [1.5, 5, 10], // non-integer lower
+    [2, 5.5, 10], // non-integer upper
+  ])("rejects lower %f, upper %f within total %i", (lower, upper, total) => {
+    expect(isValidRandomBounds(lower, upper, total)).toBe(false);
   });
 });

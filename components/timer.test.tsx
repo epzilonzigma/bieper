@@ -58,6 +58,10 @@ const resetButton = () => screen.getByRole("button", { name: "Reset" });
 const offRadio = () => screen.getByRole("radio", { name: "Normal" });
 const paceRadio = () => screen.getByRole("radio", { name: "Pace" });
 const paceInput = () => screen.getByLabelText("Pace (sec)");
+// BPR-005 Random-cue helpers. The Min/Max inputs only render in Random mode.
+const randomRadio = () => screen.getByRole("radio", { name: "Random" });
+const minInput = () => screen.getByLabelText("Min (sec)");
+const maxInput = () => screen.getByLabelText("Max (sec)");
 // Counts cue beeps ONLY when no pause/reset happened in the window, since those
 // also construct /audio/interval.mp3 (see CRITICAL harness note in the task).
 const beeps = () =>
@@ -496,9 +500,315 @@ describe("Timer", () => {
     render(<Timer />);
     setDuration(0, 1); // 00:01 — no interval can fit
     fireEvent.click(paceRadio());
+    // Enter "2" (not "1": fireEvent.change to a value equal to the input's
+    // placeholder is a no-op in jsdom, so use a non-placeholder invalid value).
+    fireEvent.change(paceInput(), { target: { value: "2" } });
 
     expect(
       screen.getByText("Set a timer of at least 2 seconds to use Pace."),
     ).toBeInTheDocument();
+  });
+
+  test("4.11 selecting Pace shows no error until a value is entered", () => {
+    render(<Timer />);
+    setDuration(1, 0); // 01:00
+    fireEvent.click(paceRadio());
+
+    // No message and no describedby wiring on a bare selection — but Start is
+    // still silently gated until a valid interval is entered.
+    expect(paceInput()).not.toHaveAttribute("aria-describedby");
+    expect(
+      screen.queryByText("Enter a whole number from 1 to 59."),
+    ).not.toBeInTheDocument();
+    expect(startButton()).toBeDisabled();
+
+    fireEvent.change(paceInput(), { target: { value: "60" } }); // invalid
+    expect(
+      screen.getByText("Enter a whole number from 1 to 59."),
+    ).toBeInTheDocument();
+  });
+});
+
+// BPR-005 — Random cue mode. randomGap reads Math.random, so each cadence test
+// stubs it deterministically; the scoped afterEach restores the spy (the global
+// afterEach only unstubs globals, it does not restore vi.spyOn spies).
+describe("Timer — random cue (BPR-005)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("5.1 the Random radio is selectable and reveals Min/Max inputs", () => {
+    render(<Timer />);
+
+    fireEvent.click(randomRadio());
+
+    expect(randomRadio()).toBeChecked();
+    expect(minInput()).toBeInTheDocument();
+    expect(maxInput()).toBeInTheDocument();
+  });
+
+  test("5.2 Min/Max inputs render only in Random mode", () => {
+    render(<Timer />);
+
+    expect(screen.queryByLabelText("Min (sec)")).not.toBeInTheDocument();
+
+    fireEvent.click(paceRadio());
+    expect(screen.queryByLabelText("Min (sec)")).not.toBeInTheDocument();
+
+    fireEvent.click(randomRadio());
+    expect(minInput()).toBeEnabled();
+    expect(maxInput()).toBeEnabled();
+  });
+
+  test("5.3 fires a cue after each random gap", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // gap === min === 2 every draw
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+
+    advance(2000); // first gap (2s)
+    expect(beeps()).toBe(1);
+
+    advance(2000); // second gap (2s)
+    expect(beeps()).toBe(2);
+  });
+
+  test("5.4 does not cue at Start before any tick", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // gap === min === 2
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    // min "2" (not "1": entering a value equal to the input placeholder is a
+    // jsdom fireEvent no-op). The earliest cue is still one gap after Start.
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+
+    expect(beeps()).toBe(0);
+  });
+
+  test("5.5 re-randomises the gap after each cue", async () => {
+    // bounds [2,4], span 3: Math.random 0 -> gap 2, 0.9 -> gap 4.
+    vi.spyOn(Math, "random")
+      .mockReturnValueOnce(0) // start seed -> 2
+      .mockReturnValueOnce(0.9) // reseed after first cue -> 4
+      .mockReturnValue(0.9);
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+
+    advance(2000); // elapsed 2 -> first cue
+    expect(beeps()).toBe(1);
+
+    advance(2000); // elapsed 4 -> NOT yet (second gap is 4, not 2)
+    expect(beeps()).toBe(1);
+
+    advance(2000); // elapsed 6 -> second cue
+    expect(beeps()).toBe(2);
+  });
+
+  test("5.6 does not cue at completion (stop cue plays instead)", async () => {
+    // bounds [2,3]: seed gap 2, reseed gap 3 -> would land at elapsed 5 == 00:00.
+    vi.spyOn(Math, "random")
+      .mockReturnValueOnce(0) // -> 2
+      .mockReturnValueOnce(0.9) // -> 3
+      .mockReturnValue(0.9);
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "3" } });
+    await start();
+
+    advance(2000); // elapsed 2 -> one cue
+    expect(beeps()).toBe(1);
+
+    advance(3000); // elapsed 5 -> completion suppresses the scheduled cue
+    expect(beeps()).toBe(1);
+    expect(constructedSrcs).toContain("/audio/timer-stop.mp3");
+  });
+
+  test("5.6b the largest valid gap still cues at one second remaining", async () => {
+    // bounds [3,4], span 2: Math.random 0.9 -> gap 4, landing at elapsed 4 (00:01).
+    vi.spyOn(Math, "random").mockReturnValue(0.9);
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "3" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+
+    advance(4000); // elapsed 4 -> remaining 1 -> cue fires
+    expect(beeps()).toBe(1);
+
+    advance(1000); // elapsed 5 -> completion, no further cue
+    expect(beeps()).toBe(1);
+  });
+
+  test("5.7 Start is disabled and both inputs invalid for bad bounds", () => {
+    render(<Timer />);
+    setDuration(0, 10); // total 10
+    fireEvent.click(randomRadio());
+
+    // blank/zero bounds
+    expect(startButton()).toBeDisabled();
+    expect(minInput()).toHaveAttribute("aria-invalid", "true");
+    expect(maxInput()).toHaveAttribute("aria-invalid", "true");
+
+    // upper not strictly above lower
+    fireEvent.change(minInput(), { target: { value: "5" } });
+    fireEvent.change(maxInput(), { target: { value: "5" } });
+    expect(startButton()).toBeDisabled();
+
+    // upper equals the total
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "10" } });
+    expect(startButton()).toBeDisabled();
+
+    // valid bounds
+    fireEvent.change(maxInput(), { target: { value: "5" } });
+    expect(startButton()).toBeEnabled();
+    expect(minInput()).toHaveAttribute("aria-invalid", "false");
+    expect(maxInput()).toHaveAttribute("aria-invalid", "false");
+  });
+
+  test("5.8 shows a guiding error for invalid bounds, none for valid", () => {
+    render(<Timer />);
+    setDuration(0, 10); // total 10 -> valid range 1..9
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "5" } });
+    fireEvent.change(maxInput(), { target: { value: "5" } });
+
+    const error = screen.getByText(
+      "Enter whole numbers with 1 ≤ Min < Max ≤ 9.",
+    );
+    expect(error).toBeInTheDocument();
+    expect(minInput()).toHaveAttribute("aria-describedby", error.id);
+    expect(maxInput()).toHaveAttribute("aria-describedby", error.id);
+
+    fireEvent.change(maxInput(), { target: { value: "8" } });
+    expect(
+      screen.queryByText("Enter whole numbers with 1 ≤ Min < Max ≤ 9."),
+    ).not.toBeInTheDocument();
+  });
+
+  test("5.8b error tells the user to lengthen a too-short timer", () => {
+    render(<Timer />);
+    setDuration(0, 2); // total 2 -> no room for 1 <= min < max < 2
+    fireEvent.click(randomRadio());
+    // Non-placeholder values so the change registers; any entry is invalid here.
+    fireEvent.change(minInput(), { target: { value: "3" } });
+    fireEvent.change(maxInput(), { target: { value: "5" } });
+
+    expect(
+      screen.getByText("Set a timer of at least 3 seconds to use Random."),
+    ).toBeInTheDocument();
+  });
+
+  test("5.8c selecting Random shows no error until a value is entered", () => {
+    render(<Timer />);
+    setDuration(0, 10); // total 10
+    fireEvent.click(randomRadio());
+
+    // No message on a bare selection, but Start stays silently gated.
+    expect(minInput()).not.toHaveAttribute("aria-describedby");
+    expect(maxInput()).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/Enter whole numbers/)).not.toBeInTheDocument();
+    expect(startButton()).toBeDisabled();
+
+    fireEvent.change(minInput(), { target: { value: "5" } });
+    fireEvent.change(maxInput(), { target: { value: "5" } }); // invalid
+    expect(
+      screen.getByText("Enter whole numbers with 1 ≤ Min < Max ≤ 9."),
+    ).toBeInTheDocument();
+  });
+
+  test("5.9 selecting Random deselects Pace and vice versa", () => {
+    render(<Timer />);
+
+    fireEvent.click(paceRadio());
+    expect(paceRadio()).toBeChecked();
+
+    fireEvent.click(randomRadio());
+    expect(randomRadio()).toBeChecked();
+    expect(paceRadio()).not.toBeChecked();
+
+    fireEvent.click(paceRadio());
+    expect(paceRadio()).toBeChecked();
+    expect(randomRadio()).not.toBeChecked();
+  });
+
+  test("5.9b switching to Normal clears the random cadence", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    fireEvent.click(offRadio()); // back to Normal — no cue mode active
+    await start();
+
+    advance(5000); // full countdown
+    expect(beeps()).toBe(0);
+    expect(constructedSrcs).toContain("/audio/timer-stop.mp3");
+  });
+
+  test("5.10 selector and bound inputs lock while running, unlock after reset", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+    advance(1000); // running
+
+    expect(randomRadio()).toHaveAttribute("aria-disabled", "true");
+    expect(minInput()).toBeDisabled();
+    expect(maxInput()).toBeDisabled();
+
+    fireEvent.click(pauseButton());
+    fireEvent.click(resetButton()); // back to idle
+
+    expect(randomRadio()).not.toHaveAttribute("aria-disabled", "true");
+    expect(minInput()).toBeEnabled();
+    expect(maxInput()).toBeEnabled();
+  });
+
+  test("5.11 reset preserves bounds and re-randomises the next Start", async () => {
+    const rand = vi.spyOn(Math, "random").mockReturnValue(0); // first run: gap 2
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+    advance(2000); // a cue at the first (gap 2) tick
+    fireEvent.click(pauseButton());
+
+    fireEvent.click(resetButton());
+
+    // Settings survive the reset.
+    expect(randomRadio()).toBeChecked();
+    expect(minInput()).toHaveValue(2);
+    expect(maxInput()).toHaveValue(4);
+
+    // A fresh Start re-draws the gap — now 4 (0.9 over span 3), so no cue at
+    // elapsed 2, one cue at elapsed 4. Count the delta since reset/pause also
+    // construct /audio/interval.mp3.
+    rand.mockReturnValue(0.9);
+    const before = beeps();
+    await start();
+
+    advance(2000); // elapsed 2 -> nothing (gap is now 4)
+    expect(beeps() - before).toBe(0);
+
+    advance(2000); // elapsed 4 -> one cue
+    expect(beeps() - before).toBe(1);
   });
 });
