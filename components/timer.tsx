@@ -368,17 +368,20 @@ export const Timer = () => {
             }
           </div>
 
-          <div className="flex w-full items-center gap-2">
-            <Checkbox
-              id="visual-flash"
-              checked={visualFlashEnabled}
-              onCheckedChange={(checked) => setVisualFlashEnabled(checked)}
-              disabled={status !== "idle"}
-            />
-            <Label htmlFor="visual-flash" className="font-sans text-muted-foreground">
-              Visual flash
-            </Label>
-          </div>
+          { cueMode !== "off" ?
+            <div className="flex w-full items-center gap-2">
+              <Checkbox
+                id="visual-flash"
+                checked={visualFlashEnabled}
+                onCheckedChange={(checked) => setVisualFlashEnabled(checked)}
+                disabled={status !== "idle"}
+              />
+              <Label htmlFor="visual-flash" className="font-sans text-muted-foreground">
+                Flash at beep
+              </Label>
+            </div> : 
+            null
+          }
 
           <div className="flex w-full gap-4">
             <Button
