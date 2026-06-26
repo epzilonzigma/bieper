@@ -812,3 +812,166 @@ describe("Timer — random cue (BPR-005)", () => {
     expect(beeps() - before).toBe(1);
   });
 });
+
+// BPR-006 — Violet flash overlay on cue beeps. Reuses the AudioMock harness:
+// fireCue() constructs /audio/interval.mp3 AND (when enabled and not reduced
+// motion) lights the data-testid="flash-overlay" for 200ms. The overlay reflects
+// its lit state via opacity-100 (lit) / opacity-0 (unlit). Beeps are always >= 1s
+// apart, while the flash window is 200ms, so the two-step "advance to the beep
+// tick (lit), then advance 200ms (unlit)" pattern observes both states cleanly.
+describe("Timer — visual flash (BPR-006)", () => {
+  // Random-cue cases stub Math.random; restore it like the BPR-005 block.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const flashCheckbox = () =>
+    screen.getByRole("checkbox", { name: "Visual flash" });
+  const overlay = () => screen.getByTestId("flash-overlay");
+
+  test("6.1 the Visual flash checkbox is present and toggles", () => {
+    render(<Timer />);
+
+    expect(flashCheckbox()).not.toBeChecked();
+    fireEvent.click(flashCheckbox());
+    expect(flashCheckbox()).toBeChecked();
+    fireEvent.click(flashCheckbox());
+    expect(flashCheckbox()).not.toBeChecked();
+  });
+
+  test("6.2 lights on a Pace cue beep and clears after 200ms", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(paceRadio());
+    fireEvent.change(paceInput(), { target: { value: "1" } });
+    fireEvent.click(flashCheckbox());
+    await start();
+
+    advance(1000); // elapsed 1 -> first pace beep
+    expect(beeps()).toBe(1);
+    expect(overlay()).toHaveClass("opacity-100");
+
+    advance(200); // flash-clear timeout fires
+    expect(overlay()).toHaveClass("opacity-0");
+  });
+
+  test("6.3 lights on a Random cue beep and clears after 200ms", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // gap === min === 2
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    fireEvent.click(flashCheckbox());
+    await start();
+
+    advance(2000); // first random gap (2s) -> beep
+    expect(beeps()).toBe(1);
+    expect(overlay()).toHaveClass("opacity-100");
+
+    advance(200); // flash-clear timeout fires
+    expect(overlay()).toHaveClass("opacity-0");
+  });
+
+  // Re-trigger: each successive beep re-lights the overlay (lit -> unlit ->
+  // lit). NOTE: two beeps literally <200ms apart is unreachable — the countdown
+  // spaces beeps >= 1s apart, so the pending 200ms flash timeout has always
+  // already fired before the next beep. fireCue still runs its clearTimeout +
+  // reschedule path on every beep here (clearing an already-fired timer), but the
+  // "stay lit straight through an overlapping cue" branch cannot be exercised via
+  // the countdown. Flagged in the report.
+  test("6.4 re-lights the overlay on each successive Pace beep", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(paceRadio());
+    fireEvent.change(paceInput(), { target: { value: "1" } });
+    fireEvent.click(flashCheckbox());
+    await start();
+
+    advance(1000); // elapsed 1 -> beep
+    expect(overlay()).toHaveClass("opacity-100");
+    advance(200);
+    expect(overlay()).toHaveClass("opacity-0");
+
+    advance(800); // elapsed 2 -> next beep
+    expect(overlay()).toHaveClass("opacity-100");
+    advance(200);
+    expect(overlay()).toHaveClass("opacity-0");
+
+    advance(800); // elapsed 3 -> next beep
+    expect(overlay()).toHaveClass("opacity-100");
+  });
+
+  test("6.5 does not light when unchecked, but the beep still plays", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(paceRadio());
+    fireEvent.change(paceInput(), { target: { value: "1" } });
+    // Visual flash left unchecked.
+    await start();
+
+    advance(1000); // elapsed 1 -> beep
+    expect(beeps()).toBe(1);
+    expect(constructedSrcs).toContain("/audio/interval.mp3");
+    expect(overlay()).toHaveClass("opacity-0");
+  });
+
+  test("6.6 Reset plays the interval cue but does not light the overlay", () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(flashCheckbox()); // even with flash enabled
+    fireEvent.click(resetButton()); // idle -> Reset is enabled
+
+    expect(constructedSrcs).toContain("/audio/interval.mp3");
+    expect(overlay()).toHaveClass("opacity-0");
+  });
+
+  test("6.7 suppresses the flash under reduced motion, audio still plays", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: true,
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+    }));
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(paceRadio());
+    fireEvent.change(paceInput(), { target: { value: "1" } });
+    fireEvent.click(flashCheckbox());
+    await start();
+
+    advance(1000); // elapsed 1 -> beep, but reduced motion suppresses the flash
+    expect(beeps()).toBe(1);
+    expect(constructedSrcs).toContain("/audio/interval.mp3");
+    expect(overlay()).toHaveClass("opacity-0");
+  });
+
+  test("6.8 checkbox disables while running and its checked state survives Reset", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    fireEvent.click(flashCheckbox());
+    expect(flashCheckbox()).toBeChecked();
+    // The base-ui checkbox is a <span role="checkbox"> — it exposes its locked
+    // state via aria-disabled, not the native `disabled` attribute (same as the
+    // radios in tests 4.5 / 5.10).
+    expect(flashCheckbox()).not.toHaveAttribute("aria-disabled", "true");
+
+    await start();
+    expect(flashCheckbox()).toHaveAttribute("aria-disabled", "true"); // running
+
+    advance(2000);
+    fireEvent.click(pauseButton());
+    expect(flashCheckbox()).toHaveAttribute("aria-disabled", "true"); // paused
+
+    fireEvent.click(resetButton()); // back to idle
+    expect(flashCheckbox()).not.toHaveAttribute("aria-disabled", "true");
+    expect(flashCheckbox()).toBeChecked(); // setting preserved across Reset
+  });
+
+  test("6.9 the overlay is non-interactive (pointer-events-none)", () => {
+    render(<Timer />);
+    expect(overlay()).toHaveClass("pointer-events-none");
+  });
+});

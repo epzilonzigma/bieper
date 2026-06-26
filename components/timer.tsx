@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -29,14 +30,6 @@ const play = (src: string) => {
   audio.play().catch((err) => {console.log(err)});
 };
 
-// Dedicated call site for the Pace interval beep, kept separate from the generic
-// play() used by Start/Reset/Pause so BPR-006 can hook the visual flash onto cue
-// beeps only. For now it only plays the sound.
-const fireCue = () => {
-  const audio = new Audio("/audio/interval.mp3");
-  audio.play().catch((err) => {console.log(err)});
-};
-
 export const Timer = () => {
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(0);
@@ -46,6 +39,8 @@ export const Timer = () => {
   const [intervalSeconds, setIntervalSeconds] = useState(0);
   const [lowerBound, setLowerBound] = useState(0);
   const [upperBound, setUpperBound] = useState(0);
+  const [visualFlashEnabled, setVisualFlashEnabled] = useState(false);
+  const [flashing, setFlashing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const remainingRef = useRef(0);
   // Cue settings the running tick reads. Seeded at Start only (controls are
@@ -58,6 +53,10 @@ export const Timer = () => {
   // Seconds until the next cue fires. Shared by both cue modes: Pace reseeds it
   // with the fixed interval, Random reseeds it with a fresh random gap.
   const nextCueRef = useRef(0);
+  // Visual-flash toggle captured at Start so the running tick reads a value that
+  // cannot change mid-run, plus the id of the pending flash-clear timeout.
+  const visualFlashRef = useRef(false);
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const configuredTotal = minutes * 60 + seconds; // what value to count down from?
   const isRunning = status === "running";
@@ -87,6 +86,33 @@ export const Timer = () => {
     }
   };
 
+  const clearFlash = () => {
+    if (flashTimeoutRef.current !== null) {
+      clearTimeout(flashTimeoutRef.current);
+      flashTimeoutRef.current = null;
+    }
+    setFlashing(false);
+  };
+
+  // Dedicated call site for cue beeps (Pace / Random), kept separate from the
+  // generic play() used by Start/Reset/Pause so the visual flash hooks cue beeps
+  // only. The audio always plays; the flash lights only when enabled and the OS
+  // is not requesting reduced motion. Overlapping cues restart the 200 ms window.
+  const fireCue = () => {
+    const audio = new Audio("/audio/interval.mp3");
+    audio.play().catch((err) => {console.log(err)});
+    const reducedMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    )?.matches;
+    if (visualFlashRef.current && !reducedMotion) {
+      if (flashTimeoutRef.current !== null) {
+        clearTimeout(flashTimeoutRef.current);
+      }
+      setFlashing(true);
+      flashTimeoutRef.current = setTimeout(() => setFlashing(false), 200);
+    }
+  };
+
   const beginTick = () => {
     clearTick();
     intervalRef.current = setInterval(() => {
@@ -94,6 +120,7 @@ export const Timer = () => {
       setRemaining(remainingRef.current);
       if (remainingRef.current <= 0) {
         clearTick();
+        clearFlash();
         play("/audio/timer-stop.mp3");
         setStatus("idle");
       } else if (cueModeRef.current !== "off") {
@@ -114,6 +141,7 @@ export const Timer = () => {
   useEffect(() => {
     return () => {
       clearTick();
+      clearFlash();
     };
   }, []);
 
@@ -160,6 +188,7 @@ export const Timer = () => {
     remainingRef.current = configuredTotal;
     setRemaining(configuredTotal);
     cueModeRef.current = cueMode;
+    visualFlashRef.current = visualFlashEnabled;
     paceIntervalRef.current = intervalSeconds;
     lowerBoundRef.current = lowerBound;
     upperBoundRef.current = upperBound;
@@ -184,6 +213,7 @@ export const Timer = () => {
 
   const handleReset = () => {
     clearTick();
+    clearFlash();
     setStatus("idle");
     remainingRef.current = configuredTotal;
     setRemaining(configuredTotal);
@@ -192,174 +222,195 @@ export const Timer = () => {
   };
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardContent className="flex flex-col items-center gap-6">
-        <div className={`font-mono text-7xl tabular-nums ${digitColor[status]}`}>
-          {formatTime(remaining)}
-        </div>
-
-        <div className="flex w-full gap-4">
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="minutes" className="text-muted-foreground">
-              Minutes
-            </Label>
-            <Input
-              id="minutes"
-              type="number"
-              min={0}
-              placeholder="0"
-              value={minutes === 0 ? "" : minutes}
-              disabled={status !== "idle"}
-              onChange={(e) => handleMinutes(e.target.value)}
-            />
+    <>
+      <div
+        data-testid="flash-overlay"
+        aria-hidden="true"
+        className={`pointer-events-none fixed inset-0 z-50 bg-timer-react/40 ${
+          flashing ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <Card className="w-full max-w-sm">
+        <CardContent className="flex flex-col items-center gap-6">
+          <div className={`font-mono text-7xl tabular-nums ${digitColor[status]}`}>
+            {formatTime(remaining)}
           </div>
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="seconds" className="text-muted-foreground">
-              Seconds
-            </Label>
-            <Input
-              id="seconds"
-              type="number"
-              min={0}
-              max={59}
-              placeholder="0"
-              value={seconds === 0 ? "" : seconds}
-              disabled={status !== "idle"}
-              onChange={(e) => handleSeconds(e.target.value)}
-            />
-          </div>
-        </div>
 
-        <div className="flex w-full flex-col gap-3">
-          <span className="text-sm text-muted-foreground">Mode</span>
-          <RadioGroup
-            aria-label="Cue mode"
-            value={cueMode}
-            onValueChange={(value) => setCueMode(value as CueMode)}
-            disabled={status !== "idle"}
-            className="flex flex-row gap-6"
-          >
-            <div className="flex items-center gap-2">
-              <RadioGroupItem id="cue-off" value="off" />
-              <Label htmlFor="cue-off" className="text-muted-foreground">
-                Normal
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <RadioGroupItem id="cue-pace" value="pace" />
-              <Label htmlFor="cue-pace" className="text-muted-foreground">
-                Pace
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <RadioGroupItem id="cue-random" value="random" />
-              <Label htmlFor="cue-random" className="text-muted-foreground">
-                Random
-              </Label>
-            </div>
-          </RadioGroup>
-          {cueMode === "pace" ?
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pace-seconds" className="text-muted-foreground">
-                Pace (sec)
+          <div className="flex w-full gap-4">
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Label htmlFor="minutes" className="text-muted-foreground">
+                Minutes
               </Label>
               <Input
-                id="pace-seconds"
+                id="minutes"
                 type="number"
-                min={1}
-                placeholder="1"
-                value={intervalSeconds === 0 ? "" : intervalSeconds}
-                disabled={cueMode !== "pace" || status !== "idle"}
-                aria-invalid={paceInvalid}
-                aria-describedby={paceError ? "pace-error" : undefined}
-                onChange={(e) => handleIntervalSeconds(e.target.value)}
+                min={0}
+                placeholder="0"
+                value={minutes === 0 ? "" : minutes}
+                disabled={status !== "idle"}
+                onChange={(e) => handleMinutes(e.target.value)}
               />
-              {paceError ?
-                <p id="pace-error" className="text-sm text-destructive">
-                  {paceError}
-                </p> :
-                null
-              }
-            </div> :
-            <div />
-          }
-          {cueMode === "random" ?
-            <div className="flex flex-col gap-1.5">
-              <div className="flex gap-4">
-                <div className="flex flex-1 flex-col gap-1.5">
-                  <Label htmlFor="random-min" className="text-muted-foreground">
-                    Min (sec)
-                  </Label>
-                  <Input
-                    id="random-min"
-                    type="number"
-                    min={1}
-                    placeholder="1"
-                    value={lowerBound === 0 ? "" : lowerBound}
-                    disabled={cueMode !== "random" || status !== "idle"}
-                    aria-invalid={randomInvalid}
-                    aria-describedby={randomError ? "random-error" : undefined}
-                    onChange={(e) => handleLowerBound(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-1 flex-col gap-1.5">
-                  <Label htmlFor="random-max" className="text-muted-foreground">
-                    Max (sec)
-                  </Label>
-                  <Input
-                    id="random-max"
-                    type="number"
-                    min={1}
-                    placeholder="2"
-                    value={upperBound === 0 ? "" : upperBound}
-                    disabled={cueMode !== "random" || status !== "idle"}
-                    aria-invalid={randomInvalid}
-                    aria-describedby={randomError ? "random-error" : undefined}
-                    onChange={(e) => handleUpperBound(e.target.value)}
-                  />
-                </div>
-              </div>
-              {randomError ?
-                <p id="random-error" className="text-sm text-destructive">
-                  {randomError}
-                </p> :
-                null
-              }
-            </div> :
-            <div />
-          }
-        </div>
+            </div>
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Label htmlFor="seconds" className="text-muted-foreground">
+                Seconds
+              </Label>
+              <Input
+                id="seconds"
+                type="number"
+                min={0}
+                max={59}
+                placeholder="0"
+                value={seconds === 0 ? "" : seconds}
+                disabled={status !== "idle"}
+                onChange={(e) => handleSeconds(e.target.value)}
+              />
+            </div>
+          </div>
 
-        <div className="flex w-full gap-4">
-          <Button
-            className="flex-1"
-            size="lg"
-            disabled={paceInvalid || randomInvalid}
-            onClick={
-              status === "running"
-                ? handlePause
-                : status === "paused"
-                  ? handleResume
-                  : handleStart
+          <div className="flex w-full flex-col gap-3">
+            <span className="text-sm text-muted-foreground">Mode</span>
+            <RadioGroup
+              aria-label="Cue mode"
+              value={cueMode}
+              onValueChange={(value) => setCueMode(value as CueMode)}
+              disabled={status !== "idle"}
+              className="flex flex-row gap-6"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem id="cue-off" value="off" />
+                <Label htmlFor="cue-off" className="text-muted-foreground">
+                  Normal
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem id="cue-pace" value="pace" />
+                <Label htmlFor="cue-pace" className="text-muted-foreground">
+                  Pace
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem id="cue-random" value="random" />
+                <Label htmlFor="cue-random" className="text-muted-foreground">
+                  Random
+                </Label>
+              </div>
+            </RadioGroup>
+            {cueMode === "pace" ?
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pace-seconds" className="text-muted-foreground">
+                  Pace (sec)
+                </Label>
+                <Input
+                  id="pace-seconds"
+                  type="number"
+                  min={1}
+                  placeholder="1"
+                  value={intervalSeconds === 0 ? "" : intervalSeconds}
+                  disabled={cueMode !== "pace" || status !== "idle"}
+                  aria-invalid={paceInvalid}
+                  aria-describedby={paceError ? "pace-error" : undefined}
+                  onChange={(e) => handleIntervalSeconds(e.target.value)}
+                />
+                {paceError ?
+                  <p id="pace-error" className="text-sm text-destructive">
+                    {paceError}
+                  </p> :
+                  null
+                }
+              </div> :
+              <div />
             }
-          >
-            {status === "running"
-              ? "Pause"
-              : status === "paused"
-                ? "Resume"
-                : "Start"}
-          </Button>
-          <Button
-            className="flex-1"
-            size="lg"
-            variant="destructive"
-            onClick={handleReset}
-            disabled={isRunning}
-          >
-            Reset
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+            {cueMode === "random" ?
+              <div className="flex flex-col gap-1.5">
+                <div className="flex gap-4">
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <Label htmlFor="random-min" className="text-muted-foreground">
+                      Min (sec)
+                    </Label>
+                    <Input
+                      id="random-min"
+                      type="number"
+                      min={1}
+                      placeholder="1"
+                      value={lowerBound === 0 ? "" : lowerBound}
+                      disabled={cueMode !== "random" || status !== "idle"}
+                      aria-invalid={randomInvalid}
+                      aria-describedby={randomError ? "random-error" : undefined}
+                      onChange={(e) => handleLowerBound(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <Label htmlFor="random-max" className="text-muted-foreground">
+                      Max (sec)
+                    </Label>
+                    <Input
+                      id="random-max"
+                      type="number"
+                      min={1}
+                      placeholder="2"
+                      value={upperBound === 0 ? "" : upperBound}
+                      disabled={cueMode !== "random" || status !== "idle"}
+                      aria-invalid={randomInvalid}
+                      aria-describedby={randomError ? "random-error" : undefined}
+                      onChange={(e) => handleUpperBound(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {randomError ?
+                  <p id="random-error" className="text-sm text-destructive">
+                    {randomError}
+                  </p> :
+                  null
+                }
+              </div> :
+              <div />
+            }
+          </div>
+
+          <div className="flex w-full items-center gap-2">
+            <Checkbox
+              id="visual-flash"
+              checked={visualFlashEnabled}
+              onCheckedChange={(checked) => setVisualFlashEnabled(checked)}
+              disabled={status !== "idle"}
+            />
+            <Label htmlFor="visual-flash" className="font-sans text-muted-foreground">
+              Visual flash
+            </Label>
+          </div>
+
+          <div className="flex w-full gap-4">
+            <Button
+              className="flex-1"
+              size="lg"
+              disabled={paceInvalid || randomInvalid}
+              onClick={
+                status === "running"
+                  ? handlePause
+                  : status === "paused"
+                    ? handleResume
+                    : handleStart
+              }
+            >
+              {status === "running"
+                ? "Pause"
+                : status === "paused"
+                  ? "Resume"
+                  : "Start"}
+            </Button>
+            <Button
+              className="flex-1"
+              size="lg"
+              variant="destructive"
+              onClick={handleReset}
+              disabled={isRunning}
+            >
+              Reset
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 };
