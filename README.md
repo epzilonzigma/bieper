@@ -1,33 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bieper
 
-## Getting Started
+Bieper is a timer app for combat-sports training — built for interval and reaction drills.
 
-First, run the development server:
+## Tech stack
+
+- **Next.js 16** (App Router) with **React 19**
+- **TypeScript 5** (strict mode), path alias `@/*` → project root
+- **Tailwind CSS v4** — CSS-first config; tokens live in `app/globals.css`, no `tailwind.config` file
+- **shadcn/ui** (`base-nova` style, `@base-ui/react` under the hood, lucide icons)
+- **Vitest** + React Testing Library for unit/component tests
+- **yarn 1.22 (classic)** as the package manager
+
+## Prerequisites
+
+- **Node.js 20 or newer**
+- **yarn 1.22 (classic)** — this project uses yarn only. Do not use `npm`, `pnpm`, or
+  `npx` where a yarn equivalent exists, and never commit a `package-lock.json` or
+  `pnpm-lock.yaml`.
+
+## Getting started
+
+Install dependencies:
 
 ```bash
-npm run dev
-# or
+yarn install
+```
+
+Run the development server:
+
+```bash
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Additional commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+yarn build        # production build
+yarn start        # run the production build
+yarn lint         # run ESLint
+yarn test         # run the Vitest unit/component suite once
+yarn test:watch   # run Vitest in watch mode
+```
 
-## Learn More
+### Testing
 
-To learn more about Next.js, take a look at the following resources:
+Every feature ships **Vitest unit/component tests** co-located with the source
+(`components/<name>.test.tsx`). Run `yarn test` (once) or `yarn test:watch` (watch mode).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+In timer tests, mock `window.Audio` and drive time with `vi.useFakeTimers()`. Never
+assert real audio playback — assert observable state only (rendered digits, `disabled`,
+the `src` passed to `Audio`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Design assets
+
+Audio assets sourced from Pixabay:
+
+- [transcendedlifting](https://pixabay.com/users/transcendedlifting-30596364/)
+- [freesound_community](https://pixabay.com/users/freesound_community-46691455/)
+- [u_mzcig4o8yx](https://pixabay.com/sound-effects/search/u_mzcig4o8yx/)
 
 ## Deploy on Vercel
 
