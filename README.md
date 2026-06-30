@@ -1,6 +1,8 @@
 # Bieper
 
-Bieper is a timer app for combat-sports training — built for interval and reaction drills.
+Bieper is a timer app for sports training — built for interval and reaction drills.
+
+It can be accessed at https://bieper.pages.dev
 
 ## Tech stack
 
