@@ -12,10 +12,11 @@ export const isValidInterval = (
   intervalSeconds >= 1 &&
   intervalSeconds < configuredTotal;
 
-// Uniform random integer in [min, max] inclusive. Math.random() in [0, 1) maps
-// 0 -> min and 0.999... -> max, so both endpoints are reachable.
+// Uniform random gap on the 0.1s grid in [min, max] inclusive. Computed in
+// integer tenths so every 0.1 step is reachable without float drift: Math.random()
+// in [0, 1) maps 0 -> min and 0.999... -> max, so both endpoints are reachable.
 export const randomGap = (min: number, max: number): number =>
-  min + Math.floor(Math.random() * (max - min + 1));
+  (min * 10 + Math.floor(Math.random() * ((max - min) * 10 + 1))) / 10;
 
 // The random cue's bounds are valid when the lower bound is a valid interval
 // (whole number, >= 1, strictly inside the total) and the upper bound is a whole

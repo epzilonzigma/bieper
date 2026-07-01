@@ -50,8 +50,8 @@ export const Timer = () => {
   const paceIntervalRef = useRef(0);
   const lowerBoundRef = useRef(0);
   const upperBoundRef = useRef(0);
-  // Seconds until the next cue fires. Shared by both cue modes: Pace reseeds it
-  // with the fixed interval, Random reseeds it with a fresh random gap.
+  // Tenths of a second until the next cue fires. Shared by both cue modes: Pace
+  // reseeds it with the fixed interval, Random reseeds it with a fresh random gap.
   const nextCueRef = useRef(0);
   // Visual-flash toggle captured at Start so the running tick reads a value that
   // cannot change mid-run, plus the id of the pending flash-clear timeout.
@@ -97,7 +97,7 @@ export const Timer = () => {
   // Dedicated call site for cue beeps (Pace / Random), kept separate from the
   // generic play() used by Start/Reset/Pause so the visual flash hooks cue beeps
   // only. The audio always plays; the flash lights only when enabled and the OS
-  // is not requesting reduced motion. Overlapping cues restart the 200 ms window.
+  // is not requesting reduced motion. Overlapping cues restart the 100 ms window.
   const fireCue = () => {
     const audio = new Audio("/audio/interval.mp3");
     audio.play().catch((err) => {console.log(err)});
@@ -109,7 +109,7 @@ export const Timer = () => {
         clearTimeout(flashTimeoutRef.current);
       }
       setFlashing(true);
-      flashTimeoutRef.current = setTimeout(() => setFlashing(false), 200);
+      flashTimeoutRef.current = setTimeout(() => setFlashing(false), 100);
     }
   };
 
@@ -117,7 +117,9 @@ export const Timer = () => {
     clearTick();
     intervalRef.current = setInterval(() => {
       remainingRef.current -= 1;
-      setRemaining(remainingRef.current);
+      // remainingRef counts tenths of a second; ceil keeps the mm:ss display on
+      // 00:01 until the final 100ms elapses, flipping to 00:00 exactly at the end.
+      setRemaining(Math.ceil(remainingRef.current / 10));
       if (remainingRef.current <= 0) {
         clearTick();
         clearFlash();
@@ -132,10 +134,10 @@ export const Timer = () => {
           nextCueRef.current =
             cueModeRef.current === "pace"
               ? paceIntervalRef.current
-              : randomGap(lowerBoundRef.current, upperBoundRef.current);
+              : Math.round(randomGap(lowerBoundRef.current, upperBoundRef.current) * 10);
         }
       }
-    }, 1000);
+    }, 100);
   };
 
   useEffect(() => {
@@ -185,18 +187,18 @@ export const Timer = () => {
   };
 
   const handleStart = () => {
-    remainingRef.current = configuredTotal;
+    remainingRef.current = configuredTotal * 10;
     setRemaining(configuredTotal);
     cueModeRef.current = cueMode;
     visualFlashRef.current = visualFlashEnabled;
-    paceIntervalRef.current = intervalSeconds;
+    paceIntervalRef.current = intervalSeconds * 10;
     lowerBoundRef.current = lowerBound;
     upperBoundRef.current = upperBound;
     nextCueRef.current =
       cueMode === "pace"
-        ? intervalSeconds
+        ? intervalSeconds * 10
         : cueMode === "random"
-          ? randomGap(lowerBound, upperBound)
+          ? Math.round(randomGap(lowerBound, upperBound) * 10)
           : 0;
     startBellThenTick();
   };
@@ -215,7 +217,7 @@ export const Timer = () => {
     clearTick();
     clearFlash();
     setStatus("idle");
-    remainingRef.current = configuredTotal;
+    remainingRef.current = configuredTotal * 10;
     setRemaining(configuredTotal);
     nextCueRef.current = 0;
     play("/audio/interval.mp3");

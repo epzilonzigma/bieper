@@ -84,12 +84,26 @@ describe("randomGap", () => {
     expect(randomGap(2, 4)).toBe(3);
   });
 
-  // Across the whole [0, 1) range the result is always an integer within bounds.
-  test("always returns an integer within [min, max]", () => {
+  // Sub-second gaps the old whole-second formula could never produce: over [2, 4]
+  // (span 21 tenths) each Math.random lands on a distinct 0.1 step.
+  test.each([
+    [0.1, 2.2],
+    [0.25, 2.5],
+    [0.75, 3.5],
+    [0.9, 3.8],
+  ])("maps Math.random %f to 0.1-grid gap %f over [2, 4]", (r, expected) => {
+    vi.spyOn(Math, "random").mockReturnValue(r);
+    expect(randomGap(2, 4)).toBeCloseTo(expected, 5);
+  });
+
+  // Across the whole [0, 1) range the result always lands on the 0.1 grid within
+  // bounds. Uses a tenths check rather than Number.isInteger now that gaps are
+  // sub-second.
+  test("always returns a 0.1-grid value within [min, max]", () => {
     for (const r of [0, 0.1, 0.25, 0.5, 0.75, 0.999999]) {
       vi.spyOn(Math, "random").mockReturnValue(r);
       const gap = randomGap(3, 7);
-      expect(Number.isInteger(gap)).toBe(true);
+      expect(Math.round(gap * 10)).toBe(gap * 10);
       expect(gap).toBeGreaterThanOrEqual(3);
       expect(gap).toBeLessThanOrEqual(7);
     }
