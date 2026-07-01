@@ -591,11 +591,11 @@ describe("Timer — random cue (BPR-005)", () => {
   });
 
   test("5.5 re-randomises the gap after each cue", async () => {
-    // bounds [2,4], span 3: Math.random 0 -> gap 2, 0.9 -> gap 4.
+    // bounds [2,4]: Math.random 0 -> gap 2.0, 0.999999 -> gap 4.0.
     vi.spyOn(Math, "random")
       .mockReturnValueOnce(0) // start seed -> 2
-      .mockReturnValueOnce(0.9) // reseed after first cue -> 4
-      .mockReturnValue(0.9);
+      .mockReturnValueOnce(0.999999) // reseed after first cue -> 4
+      .mockReturnValue(0.999999);
     render(<Timer />);
     setDuration(0, 10);
     fireEvent.click(randomRadio());
@@ -617,8 +617,8 @@ describe("Timer — random cue (BPR-005)", () => {
     // bounds [2,3]: seed gap 2, reseed gap 3 -> would land at elapsed 5 == 00:00.
     vi.spyOn(Math, "random")
       .mockReturnValueOnce(0) // -> 2
-      .mockReturnValueOnce(0.9) // -> 3
-      .mockReturnValue(0.9);
+      .mockReturnValueOnce(0.999999) // -> 3
+      .mockReturnValue(0.999999);
     render(<Timer />);
     setDuration(0, 5);
     fireEvent.click(randomRadio());
@@ -635,8 +635,8 @@ describe("Timer — random cue (BPR-005)", () => {
   });
 
   test("5.6b the largest valid gap still cues at one second remaining", async () => {
-    // bounds [3,4], span 2: Math.random 0.9 -> gap 4, landing at elapsed 4 (00:01).
-    vi.spyOn(Math, "random").mockReturnValue(0.9);
+    // bounds [3,4]: Math.random 0.999999 -> gap 4, landing at elapsed 4 (00:01).
+    vi.spyOn(Math, "random").mockReturnValue(0.999999);
     render(<Timer />);
     setDuration(0, 5);
     fireEvent.click(randomRadio());
@@ -798,10 +798,10 @@ describe("Timer — random cue (BPR-005)", () => {
     expect(minInput()).toHaveValue(2);
     expect(maxInput()).toHaveValue(4);
 
-    // A fresh Start re-draws the gap — now 4 (0.9 over span 3), so no cue at
+    // A fresh Start re-draws the gap — now 4 (0.999999 over [2,4]), so no cue at
     // elapsed 2, one cue at elapsed 4. Count the delta since reset/pause also
     // construct /audio/interval.mp3.
-    rand.mockReturnValue(0.9);
+    rand.mockReturnValue(0.999999);
     const before = beeps();
     await start();
 
@@ -811,14 +811,31 @@ describe("Timer — random cue (BPR-005)", () => {
     advance(2000); // elapsed 4 -> one cue
     expect(beeps() - before).toBe(1);
   });
+
+  test("5.12 fires on a sub-second gap that the old whole-second engine could not", async () => {
+    // bounds [2,4]: Math.random 0.15 -> floor(0.15*21)=3 tenths over min -> gap 2.3s.
+    vi.spyOn(Math, "random").mockReturnValue(0.15);
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+
+    advance(2200); // elapsed 2.2s (22 ticks) -> gap not yet reached
+    expect(beeps()).toBe(0);
+
+    advance(100); // elapsed 2.3s (23 ticks) -> cue fires
+    expect(beeps()).toBe(1);
+  });
 });
 
 // BPR-006 — Violet flash overlay on cue beeps. Reuses the AudioMock harness:
 // fireCue() constructs /audio/interval.mp3 AND (when enabled and not reduced
-// motion) lights the data-testid="flash-overlay" for 200ms. The overlay reflects
+// motion) lights the data-testid="flash-overlay" for 100ms. The overlay reflects
 // its lit state via opacity-100 (lit) / opacity-0 (unlit). Beeps are always >= 1s
-// apart, while the flash window is 200ms, so the two-step "advance to the beep
-// tick (lit), then advance 200ms (unlit)" pattern observes both states cleanly.
+// apart, while the flash window is 100ms, so the two-step "advance to the beep
+// tick (lit), then advance 100ms (unlit)" pattern observes both states cleanly.
 describe("Timer — visual flash (BPR-006)", () => {
   // Random-cue cases stub Math.random; restore it like the BPR-005 block.
   afterEach(() => {
@@ -826,7 +843,7 @@ describe("Timer — visual flash (BPR-006)", () => {
   });
 
   const flashCheckbox = () =>
-    screen.getByRole("checkbox", { name: "Visual flash" });
+    screen.getByRole("checkbox", { name: "Flash at beep" });
   const overlay = () => screen.getByTestId("flash-overlay");
 
   test("6.1 the Visual flash checkbox is present and toggles", () => {
@@ -851,7 +868,7 @@ describe("Timer — visual flash (BPR-006)", () => {
     expect(beeps()).toBe(1);
     expect(overlay()).toHaveClass("opacity-100");
 
-    advance(200); // flash-clear timeout fires
+    advance(100); // flash-clear timeout fires
     expect(overlay()).toHaveClass("opacity-0");
   });
 
@@ -869,7 +886,7 @@ describe("Timer — visual flash (BPR-006)", () => {
     expect(beeps()).toBe(1);
     expect(overlay()).toHaveClass("opacity-100");
 
-    advance(200); // flash-clear timeout fires
+    advance(100); // flash-clear timeout fires
     expect(overlay()).toHaveClass("opacity-0");
   });
 
@@ -890,15 +907,15 @@ describe("Timer — visual flash (BPR-006)", () => {
 
     advance(1000); // elapsed 1 -> beep
     expect(overlay()).toHaveClass("opacity-100");
-    advance(200);
+    advance(100);
     expect(overlay()).toHaveClass("opacity-0");
 
-    advance(800); // elapsed 2 -> next beep
+    advance(900); // elapsed 2 -> next beep
     expect(overlay()).toHaveClass("opacity-100");
-    advance(200);
+    advance(100);
     expect(overlay()).toHaveClass("opacity-0");
 
-    advance(800); // elapsed 3 -> next beep
+    advance(900); // elapsed 3 -> next beep
     expect(overlay()).toHaveClass("opacity-100");
   });
 
