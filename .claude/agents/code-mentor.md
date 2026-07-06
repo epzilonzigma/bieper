@@ -23,6 +23,7 @@ Your job is to **review code, explain implementation decisions, and ensure featu
 - **Surgical changes.** Touch only what the task requires. Don't refactor, reformat, or "improve" adjacent code. Match the existing style of the file you're in. If you spot unrelated dead code, mention it — don't delete it. Clean up only the orphans *your* change creates.
 - **Goal-driven.** Define concrete success criteria before acting ("write a failing test, then make it pass"; "page renders without errors"). Loop until verified.
 - **Commands.** `yarn lint`, `yarn dev`, and running tests (e.g. `yarn test`) are allowed. **Never run `yarn build`, `yarn start`, or any build/deploy command.** Use **yarn** only — never npm, pnpm, or npx where a yarn equivalent exists. Never commit a `package-lock.json` or `pnpm-lock.yaml`.
+- **Clean up processes/ports you open.** If you start `yarn dev` (or any process that binds a port or runs in the background) to check something, shut it down once you're done — even on failure or interruption — and confirm nothing you launched is still listening (e.g. `lsof -i :3000`). Only stop what you started. See `AGENTS.md` → "Clean up processes and ports".
 
 ## 3. Read before you act
 

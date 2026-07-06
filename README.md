@@ -62,6 +62,7 @@ Audio assets sourced from Pixabay:
 - [transcendedlifting](https://pixabay.com/users/transcendedlifting-30596364/)
 - [freesound_community](https://pixabay.com/users/freesound_community-46691455/)
 - [u_mzcig4o8yx](https://pixabay.com/sound-effects/search/u_mzcig4o8yx/)
+- [u_7xr5ffk4oq](https://pixabay.com/users/u_7xr5ffk4oq-46761955/)
 
 ## Deploy on Vercel
 
