@@ -27,8 +27,13 @@ All agents (subagents, skills, background tasks) must follow the coding guidelin
 - Define concrete success criteria before starting (e.g. "test X passes", "page renders without errors").
 - Run `yarn lint` after code changes.
 - **Never run `yarn build`, `yarn start`, or any build/deploy command** unless the user explicitly requests it or the skill's `SKILL.md` explicitly declares it. `yarn lint` and `yarn dev` are allowed.
-- For UI changes, start the dev server and test in a browser before reporting complete.
+- For UI changes, start the dev server and test in a browser before reporting complete — then tear down whatever you started (see "Clean up processes and ports").
 - Every changed line should trace back to the user's request. If it doesn't, revert it.
+
+## Clean up processes and ports
+
+- Any process you start that binds a port or runs in the background — `yarn dev`, a Playwright / browser-MCP session, a preview server, a file watcher — must be **stopped once the task it was opened for is done**, including when the run fails or is interrupted. Close the browser, kill the server, and confirm nothing you launched is still listening (e.g. `lsof -i :3000`). Never leave a stray process or a bound port between tasks or sessions.
+- Only tear down what **you** started. Leave pre-existing servers/processes (ones you did not launch) running.
 
 ## Read specs before implementing
 

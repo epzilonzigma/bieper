@@ -12,11 +12,23 @@ import { isValidInterval, isValidRandomBounds, randomGap } from "@/lib/timer-cue
 
 type Status = "idle" | "running" | "paused";
 type CueMode = "off" | "pace" | "random";
+type Phase = "work" | "rest";
 
 const digitColor: Record<Status, string> = {
   idle: "text-timer-idle",
   running: "text-timer-active",
   paused: "text-timer-paused",
+};
+
+// Rounds-mode digit colours, keyed by the current session phase.
+const phaseColor: Record<Phase, string> = {
+  work: "text-timer-active",
+  rest: "text-timer-rest",
+};
+
+const phaseLabel: Record<Phase, string> = {
+  work: "Work",
+  rest: "Rest",
 };
 
 const formatTime = (timeInSeconds: number) => {
@@ -41,6 +53,12 @@ export const Timer = () => {
   const [upperBound, setUpperBound] = useState(0);
   const [visualFlashEnabled, setVisualFlashEnabled] = useState(false);
   const [flashing, setFlashing] = useState(false);
+  const [roundsEnabled, setRoundsEnabled] = useState(false);
+  const [roundCount, setRoundCount] = useState(1);
+  const [restMinutes, setRestMinutes] = useState(0);
+  const [restSeconds, setRestSeconds] = useState(0);
+  const [currentRound, setCurrentRound] = useState(1);
+  const [phase, setPhase] = useState<Phase>("work");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const remainingRef = useRef(0);
   // Cue settings the running tick reads. Seeded at Start only (controls are
@@ -57,6 +75,16 @@ export const Timer = () => {
   // cannot change mid-run, plus the id of the pending flash-clear timeout.
   const visualFlashRef = useRef(false);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Round settings captured at Start (controls are locked while non-idle, so
+  // they cannot drift). phaseRef/currentRoundRef are the authoritative values
+  // the tick reads and mutates synchronously; the matching state mirrors them
+  // for rendering only (reading state inside the tick would be stale).
+  const roundsEnabledRef = useRef(false);
+  const roundCountRef = useRef(1);
+  const workTenthsRef = useRef(0);
+  const restTenthsRef = useRef(0);
+  const phaseRef = useRef<Phase>("work");
+  const currentRoundRef = useRef(1);
 
   const configuredTotal = minutes * 60 + seconds; // what value to count down from?
   const isRunning = status === "running";
@@ -78,6 +106,28 @@ export const Timer = () => {
     : configuredTotal < 3
       ? "Set a timer of at least 3 seconds to use Random."
       : `Enter whole numbers with 1 ≤ Min < Max ≤ ${configuredTotal - 1}.`;
+  // In Rounds mode the work duration (configuredTotal) and rest must each be at
+  // least 1s, and the count an integer ≥ 1; rest only matters when there is a
+  // rest phase (roundCount ≥ 2). Gates Start; no inline error is shown.
+  const restTotal = restMinutes * 60 + restSeconds;
+  const roundsInvalid =
+    roundsEnabled &&
+    (roundCount < 1 ||
+      configuredTotal < 1 ||
+      (roundCount >= 2 && restTotal < 1));
+
+  // Rounds mode colours the digits by phase while running; every idle state —
+  // the pre-Start preview, after Reset, and after completion — uses the idle
+  // grey via digitColor, so idle never borrows the Amber rest/ready hue.
+  const digitClass =
+    roundsEnabled && status === "running"
+      ? phaseColor[phase]
+      : digitColor[status];
+  // The phase/round indicator shows while a session runs, and previews the round
+  // count before Start; it disappears on completion (idle with remaining 0).
+  const showRoundInfo =
+    roundsEnabled &&
+    (status !== "idle" || (remaining > 0 && roundCount >= 1));
 
   const clearTick = () => {
     if (intervalRef.current !== null) {
@@ -113,6 +163,52 @@ export const Timer = () => {
     }
   };
 
+  // Seed the tenths-until-next-cue from the captured cue settings. Used at Start
+  // (single-timer path) and on each Work-phase entry (Rounds mode); Rest leaves
+  // it at 0 since the cue branch is gated to Work phases.
+  const seedNextCue = () => {
+    nextCueRef.current =
+      cueModeRef.current === "pace"
+        ? paceIntervalRef.current
+        : cueModeRef.current === "random"
+          ? Math.round(randomGap(lowerBoundRef.current, upperBoundRef.current) * 10)
+          : 0;
+  };
+
+  // Single transition point for the round state machine, called from the tick's
+  // completion branch so digit colour and audio follow the phase automatically.
+  // It never calls clearTick (except on final completion), so the one interval
+  // survives every transition — no second interval is ever created.
+  const advancePhase = () => {
+    if (phaseRef.current === "work") {
+      play("/audio/timer-stop.mp3");
+      if (currentRoundRef.current < roundCountRef.current) {
+        phaseRef.current = "rest";
+        setPhase("rest");
+        // Advance now so Rest shows the upcoming round.
+        currentRoundRef.current += 1;
+        setCurrentRound(currentRoundRef.current);
+        remainingRef.current = restTenthsRef.current;
+        setRemaining(Math.ceil(restTenthsRef.current / 10));
+        nextCueRef.current = 0;
+      } else {
+        // Final Work done: end the session, leaving remaining at 0 (00:00).
+        clearTick();
+        clearFlash();
+        setStatus("idle");
+      }
+    } else {
+      // rest → work: start the next round, reseed the cue schedule, and ring
+      // the round-start bell (non-blocking, so Rest → Work timing stays exact).
+      phaseRef.current = "work";
+      setPhase("work");
+      remainingRef.current = workTenthsRef.current;
+      setRemaining(Math.ceil(workTenthsRef.current / 10));
+      seedNextCue();
+      play("/audio/round-start.mp3");
+    }
+  };
+
   const beginTick = () => {
     clearTick();
     intervalRef.current = setInterval(() => {
@@ -121,11 +217,20 @@ export const Timer = () => {
       // 00:01 until the final 100ms elapses, flipping to 00:00 exactly at the end.
       setRemaining(Math.ceil(remainingRef.current / 10));
       if (remainingRef.current <= 0) {
-        clearTick();
-        clearFlash();
-        play("/audio/timer-stop.mp3");
-        setStatus("idle");
-      } else if (cueModeRef.current !== "off") {
+        if (roundsEnabledRef.current) {
+          // Swap to the next phase in place; setRemaining above (0) is overwritten
+          // in the same tick, so no phase ever visibly renders 00:00 mid-session.
+          advancePhase();
+        } else {
+          clearTick();
+          clearFlash();
+          play("/audio/timer-stop.mp3");
+          setStatus("idle");
+        }
+      } else if (
+        cueModeRef.current !== "off" &&
+        (!roundsEnabledRef.current || phaseRef.current === "work")
+      ) {
         // Single countdown shared by both cue modes; only the reseed differs.
         // Sits after the completion guard, so no cue ever fires at 00:00.
         nextCueRef.current -= 1;
@@ -186,20 +291,45 @@ export const Timer = () => {
     setUpperBound(Math.max(0, Math.floor(Number(value) || 0)));
   };
 
+  const handleRoundCount = (value: string) => {
+    setRoundCount(Math.max(0, Math.floor(Number(value) || 0)));
+  };
+
+  const handleRestMinutes = (value: string) => {
+    setRestMinutes(Math.max(0, Math.floor(Number(value) || 0)));
+  };
+
+  const handleRestSeconds = (value: string) => {
+    setRestSeconds(Math.min(59, Math.max(0, Math.floor(Number(value) || 0))));
+  };
+
   const handleStart = () => {
-    remainingRef.current = configuredTotal * 10;
-    setRemaining(configuredTotal);
     cueModeRef.current = cueMode;
     visualFlashRef.current = visualFlashEnabled;
     paceIntervalRef.current = intervalSeconds * 10;
     lowerBoundRef.current = lowerBound;
     upperBoundRef.current = upperBound;
-    nextCueRef.current =
-      cueMode === "pace"
-        ? intervalSeconds * 10
-        : cueMode === "random"
-          ? Math.round(randomGap(lowerBound, upperBound) * 10)
-          : 0;
+    roundsEnabledRef.current = roundsEnabled;
+    if (roundsEnabled) {
+      // Start directly into Work(1); work/rest lengths and the round count are
+      // captured here since the controls lock while the session runs. Round 1's
+      // start is signalled only by the start bell that startBellThenTick plays —
+      // the round-start bell rings on later Rest → Work entries, not here.
+      roundCountRef.current = roundCount;
+      workTenthsRef.current = configuredTotal * 10;
+      restTenthsRef.current = restTotal * 10;
+      phaseRef.current = "work";
+      setPhase("work");
+      currentRoundRef.current = 1;
+      setCurrentRound(1);
+      remainingRef.current = configuredTotal * 10;
+      setRemaining(configuredTotal);
+      seedNextCue();
+    } else {
+      remainingRef.current = configuredTotal * 10;
+      setRemaining(configuredTotal);
+      seedNextCue();
+    }
     startBellThenTick();
   };
 
@@ -219,6 +349,10 @@ export const Timer = () => {
     setStatus("idle");
     remainingRef.current = configuredTotal * 10;
     setRemaining(configuredTotal);
+    phaseRef.current = "work";
+    setPhase("work");
+    currentRoundRef.current = 1;
+    setCurrentRound(1);
     nextCueRef.current = 0;
     play("/audio/interval.mp3");
   };
@@ -234,48 +368,136 @@ export const Timer = () => {
       />
       <Card className="w-full max-w-sm">
         <CardContent className="flex flex-col items-center gap-6">
-          <div className={`font-mono text-7xl tabular-nums ${digitColor[status]}`}>
+          <div className={`font-mono text-7xl tabular-nums ${digitClass}`}>
             {formatTime(remaining)}
           </div>
 
-          <div className="flex w-full gap-4">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="minutes" className="text-muted-foreground">
-                Minutes
+          {showRoundInfo ?
+            <div className="flex flex-col items-center gap-1 font-sans text-muted-foreground">
+              {status !== "idle" ? <span>{phaseLabel[phase]}</span> : null}
+              <span>Round {currentRound} / {roundCount}</span>
+            </div> :
+            null
+          }
+
+          <div className="flex w-full items-center gap-2">
+            <Checkbox
+              id="rounds"
+              checked={roundsEnabled}
+              onCheckedChange={(checked) => setRoundsEnabled(checked)}
+              disabled={status !== "idle"}
+            />
+            <Label htmlFor="rounds" className="font-sans text-muted-foreground">
+              Rounds
+            </Label>
+          </div>
+
+          {roundsEnabled ?
+            <div className="flex w-full flex-col gap-1.5 border-b border-border pb-4">
+              <Label htmlFor="round-count" className="text-foreground text-lg font-bold">
+                Rounds
               </Label>
               <Input
-                id="minutes"
+                id="round-count"
                 type="number"
-                min={0}
-                placeholder="0"
-                value={minutes === 0 ? "" : minutes}
+                min={1}
+                placeholder="1"
+                value={roundCount === 0 ? "" : roundCount}
                 disabled={status !== "idle"}
-                onChange={(e) => handleMinutes(e.target.value)}
+                onChange={(e) => handleRoundCount(e.target.value)}
               />
-            </div>
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="seconds" className="text-muted-foreground">
-                Seconds
-              </Label>
-              <Input
-                id="seconds"
-                type="number"
-                min={0}
-                max={59}
-                placeholder="0"
-                value={seconds === 0 ? "" : seconds}
-                disabled={status !== "idle"}
-                onChange={(e) => handleSeconds(e.target.value)}
-              />
+            </div> :
+            null
+          }
+
+          <div className={`flex w-full flex-col gap-1.5${roundsEnabled ? " border-b border-border pb-4" : ""}`}>
+            {roundsEnabled ?
+              <Label className="text-lg font-bold text-foreground">Work round</Label> :
+              null
+            }
+            <div className="flex w-full gap-4">
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label htmlFor="minutes" className="text-muted-foreground">
+                  Minutes
+                </Label>
+                <Input
+                  id="minutes"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={minutes === 0 ? "" : minutes}
+                  disabled={status !== "idle"}
+                  onChange={(e) => handleMinutes(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label htmlFor="seconds" className="text-muted-foreground">
+                  Seconds
+                </Label>
+                <Input
+                  id="seconds"
+                  type="number"
+                  min={0}
+                  max={59}
+                  placeholder="0"
+                  value={seconds === 0 ? "" : seconds}
+                  disabled={status !== "idle"}
+                  onChange={(e) => handleSeconds(e.target.value)}
+                />
+              </div>
             </div>
           </div>
+
+          {roundsEnabled ?
+            <div className="flex w-full flex-col gap-1.5 border-b border-border pb-4">
+              <Label className="text-lg font-bold text-foreground">Rest round</Label>
+              <div className="flex w-full gap-4">
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <Label className="text-muted-foreground">Minutes</Label>
+                  <Input
+                    id="rest-minutes"
+                    aria-label="Minutes"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={restMinutes === 0 ? "" : restMinutes}
+                    disabled={status !== "idle"}
+                    onChange={(e) => handleRestMinutes(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <Label className="text-muted-foreground">Seconds</Label>
+                  <Input
+                    id="rest-seconds"
+                    aria-label="Seconds"
+                    type="number"
+                    min={0}
+                    max={59}
+                    placeholder="0"
+                    value={restSeconds === 0 ? "" : restSeconds}
+                    disabled={status !== "idle"}
+                    onChange={(e) => handleRestSeconds(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div> :
+            null
+          }
 
           <div className="flex w-full flex-col gap-3">
             <span className="text-sm text-muted-foreground">Mode</span>
             <RadioGroup
               aria-label="Cue mode"
               value={cueMode}
-              onValueChange={(value) => setCueMode(value as CueMode)}
+              onValueChange={(value) => {
+                const mode = value as CueMode;
+                setCueMode(mode);
+                // Normal mode has no cue to flash, so the toggle is hidden and
+                // its state must not linger true from a previous cue mode.
+                if (mode === "off") {
+                  setVisualFlashEnabled(false);
+                }
+              }}
               disabled={status !== "idle"}
               className="flex flex-row gap-6"
             >
@@ -381,7 +603,7 @@ export const Timer = () => {
               <Label htmlFor="visual-flash" className="font-sans text-muted-foreground">
                 Flash at beep
               </Label>
-            </div> : 
+            </div> :
             null
           }
 
@@ -389,7 +611,7 @@ export const Timer = () => {
             <Button
               className="flex-1"
               size="lg"
-              disabled={paceInvalid || randomInvalid}
+              disabled={paceInvalid || randomInvalid || roundsInvalid}
               onClick={
                 status === "running"
                   ? handlePause
