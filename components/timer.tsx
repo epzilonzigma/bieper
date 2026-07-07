@@ -61,6 +61,13 @@ export const Timer = () => {
   const [phase, setPhase] = useState<Phase>("work");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const remainingRef = useRef(0);
+  // Tracks the start/resume bell so a mid-bell interrupt can cancel the pending
+  // beginTick and stop the bell. startKindRef records whether the pending bell
+  // is an initial Start or a Resume (null once the tick has begun); startGenRef
+  // is bumped on interrupt so the pending begin() becomes a no-op.
+  const startBellRef = useRef<HTMLAudioElement | null>(null);
+  const startKindRef = useRef<"start" | "resume" | null>(null);
+  const startGenRef = useRef(0);
   // Cue settings the running tick reads. Seeded at Start only (controls are
   // locked while non-idle, so they cannot drift), which keeps the beep schedule
   // correct across pause/resume since `beginTick` re-runs but never re-seeds.
@@ -266,16 +273,26 @@ export const Timer = () => {
 
   // Play the start bell and begin ticking only once it has finished. Shared by
   // Start and Resume; only Start seeds remainingRef from the configured duration.
-  const startBellThenTick = () => {
+  const startBellThenTick = (kind: "start" | "resume") => {
     setStatus("running");
     clearTick();
+    startGenRef.current += 1;
+    const gen = startGenRef.current;
+    startKindRef.current = kind;
     const audio = new Audio("/audio/timer-start.mp3");
-    audio.addEventListener("ended", () => {
+    startBellRef.current = audio;
+    // Begin ticking only if this bell was not interrupted; a mid-bell pause or
+    // reset bumps startGenRef, so a stale begin() from either path is dropped.
+    const begin = () => {
+      if (gen !== startGenRef.current) return;
+      startKindRef.current = null;
+      startBellRef.current = null;
       beginTick();
-    });
+    };
+    audio.addEventListener("ended", begin);
     audio.play().catch((err) => {
       console.log(err);
-      beginTick();
+      begin();
     });
   };
 
@@ -330,20 +347,23 @@ export const Timer = () => {
       setRemaining(configuredTotal);
       seedNextCue();
     }
-    startBellThenTick();
+    startBellThenTick("start");
   };
 
-  const handlePause = () => {
-    clearTick();
-    setStatus("paused");
-    play("/audio/interval.mp3");
+  // Invalidate any pending begin() and stop the bell if one is mid-play. A safe
+  // no-op when no bell is pending (normal running pause / reset while paused).
+  const cancelPendingStart = () => {
+    startGenRef.current += 1;
+    if (startBellRef.current !== null) {
+      startBellRef.current.pause();
+      startBellRef.current = null;
+    }
+    startKindRef.current = null;
   };
 
-  const handleResume = () => {
-    startBellThenTick();
-  };
-
-  const handleReset = () => {
+  // Restore the idle/scratch state (shared by Reset and the start-bell abort);
+  // callers play the /audio/interval.mp3 cue themselves.
+  const resetToIdle = () => {
     clearTick();
     clearFlash();
     setStatus("idle");
@@ -354,7 +374,30 @@ export const Timer = () => {
     currentRoundRef.current = 1;
     setCurrentRound(1);
     nextCueRef.current = 0;
+  };
+
+  const handleReset = () => {
+    cancelPendingStart();
+    resetToIdle();
     play("/audio/interval.mp3");
+  };
+
+  const handlePause = () => {
+    // Interrupting the initial start bell aborts the run entirely — same reset
+    // to scratch as the Reset button. Interrupting a resume bell, or pausing a
+    // running countdown, freezes at the current remaining value.
+    if (startKindRef.current === "start") {
+      handleReset();
+      return;
+    }
+    cancelPendingStart();
+    clearTick();
+    setStatus("paused");
+    play("/audio/interval.mp3");
+  };
+
+  const handleResume = () => {
+    startBellThenTick("resume");
   };
 
   return (

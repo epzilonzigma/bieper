@@ -1370,3 +1370,162 @@ describe("Timer — round-based training (BPR-008)", () => {
     expect(constructedSrcs.length).toBe(afterUnmount);
   });
 });
+
+// BPR-011 — interrupting the start/resume bell. The global AudioMock rejects
+// play(), which routes beginTick() straight through play().catch, so there is
+// never a "bell playing" window and the "ended" path is untested. This block
+// swaps in a bell-aware mock: the start bell's play() *resolves* (so beginTick
+// is gated on "ended", giving a window to click during the bell) and the
+// "ended" listener is captured so a test can dispatch it manually.
+describe("Timer — interrupting the start/resume bell (BPR-011)", () => {
+  let bells: BellAudioMock[] = [];
+
+  class BellAudioMock {
+    src: string;
+    ended: (() => void) | null = null;
+    play = vi.fn(() =>
+      this.src === "/audio/timer-start.mp3"
+        ? Promise.resolve()
+        : Promise.reject(new Error("autoplay blocked")),
+    );
+    pause = vi.fn();
+    addEventListener = vi.fn((type: string, cb: () => void) => {
+      if (type === "ended") this.ended = cb;
+    });
+    removeEventListener = vi.fn();
+
+    constructor(src: string) {
+      this.src = src;
+      constructedSrcs.push(src);
+      bells.push(this);
+    }
+  }
+
+  // The most recently constructed start/resume bell (both use timer-start.mp3).
+  const lastBell = () =>
+    bells.filter((b) => b.src === "/audio/timer-start.mp3").at(-1)!;
+  const bellCount = () =>
+    bells.filter((b) => b.src === "/audio/timer-start.mp3").length;
+
+  beforeEach(() => {
+    bells = [];
+    vi.stubGlobal("Audio", BellAudioMock);
+  });
+
+  test("11.1 clicking during the start bell resets to scratch, no stray tick", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+
+    await start(); // bell playing (play resolved) — beginTick gated on "ended"
+    expect(pauseButton()).toBeInTheDocument();
+    const bell = lastBell();
+    const beepsBefore = beeps();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // interrupt the initial start bell
+    });
+
+    // Back to idle/scratch: button reads Start, display at the full duration.
+    expect(startButton()).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+    expect(bell.pause).toHaveBeenCalled(); // bell stopped immediately
+    expect(beeps() - beepsBefore).toBe(1); // interval.mp3 cue played
+
+    // The pending "ended" must NOT start a countdown.
+    act(() => {
+      bell.ended?.();
+    });
+    advance(3000);
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+  });
+
+  test("11.2 Start after a start-bell reset replays the bell from scratch", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+
+    await start();
+    act(() => {
+      fireEvent.click(pauseButton()); // reset to scratch
+    });
+    const before = bellCount();
+
+    await start(); // Start again
+    expect(bellCount()).toBe(before + 1); // a fresh timer-start.mp3 rang
+
+    act(() => {
+      lastBell().ended?.(); // bell finishes -> countdown begins
+    });
+    advance(1000);
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+  });
+
+  test("11.3 rounds-mode start-bell interrupt resets the round indicator", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Rounds" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Rounds" }), {
+      target: { value: "3" },
+    });
+    // Rest duration is required (roundCount >= 2), else Start stays disabled.
+    fireEvent.change(screen.getAllByLabelText("Seconds")[1], {
+      target: { value: "1" },
+    });
+
+    await start();
+    expect(screen.getByText("Round 1 / 3")).toBeInTheDocument();
+    const bell = lastBell();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // interrupt -> reset to scratch
+    });
+
+    expect(startButton()).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 / 3")).toBeInTheDocument();
+
+    act(() => {
+      bell.ended?.();
+    });
+    advance(3000);
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+  });
+
+  test("11.4 clicking during the resume bell pauses (freezes), no stray tick", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+
+    await start();
+    act(() => {
+      lastBell().ended?.(); // start bell finishes -> ticking begins
+    });
+    advance(1000); // 00:03 -> 00:02
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // normal running pause
+    });
+    expect(resumeButton()).toBeInTheDocument();
+
+    await resume(); // resume bell playing (play resolved) — beginTick gated
+    expect(pauseButton()).toBeInTheDocument();
+    const resumeBell = lastBell();
+    const beepsBefore = beeps();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // interrupt the resume bell
+    });
+
+    // Lands back in paused, frozen at the mid-countdown value.
+    expect(resumeButton()).toBeInTheDocument();
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+    expect(resumeBell.pause).toHaveBeenCalled();
+    expect(beeps() - beepsBefore).toBe(1);
+
+    // The pending "ended" must NOT start a countdown.
+    act(() => {
+      resumeBell.ended?.();
+    });
+    advance(3000);
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+  });
+});
