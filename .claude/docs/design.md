@@ -62,9 +62,9 @@ Used in client components for visual feedback during training:
 | State          | Colour          | Hex       | Description                          |
 | -------------- | --------------- | --------- | ------------------------------------ |
 | Idle           | Cool Grey       | `#8B95A8` | Timer not started                    |
-| Ready          | Amber           | `#F59E0B` | Countdown before round starts        |
+| Ready          | Amber           | `#F59E0B` | Reserved warm accent — not a live timer state (idle uses Cool Grey) |
 | Active         | Emerald         | `#10B981` | Round in progress                    |
-| Rest           | Cyan            | `#06B6D4` | Rest interval between rounds         |
+| Rest           | Amber           | `#F59E0B` | Rest interval between rounds         |
 | Paused         | Red             | `#EF4444` | Timer paused                         |
 | React          | Vivid Violet    | `#8B5CF6` | Reaction cue flash                   |
 

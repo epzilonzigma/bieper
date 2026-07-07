@@ -45,8 +45,11 @@ afterEach(() => {
   constructedSrcs = [];
 });
 
-const minutesInput = () => screen.getByLabelText("Minutes");
-const secondsInput = () => screen.getByLabelText("Seconds");
+// In Rounds mode the Rest inputs share the "Minutes"/"Seconds" accessible names
+// with the work inputs. The work (Work-round) section always renders before the
+// Rest section, so index [0] is the work pair; the Rest helpers take index [1].
+const minutesInput = () => screen.getAllByLabelText("Minutes")[0];
+const secondsInput = () => screen.getAllByLabelText("Seconds")[0];
 const startButton = () => screen.getByRole("button", { name: "Start" });
 const pauseButton = () => screen.getByRole("button", { name: "Pause" });
 const resumeButton = () => screen.getByRole("button", { name: "Resume" });
@@ -591,11 +594,11 @@ describe("Timer — random cue (BPR-005)", () => {
   });
 
   test("5.5 re-randomises the gap after each cue", async () => {
-    // bounds [2,4], span 3: Math.random 0 -> gap 2, 0.9 -> gap 4.
+    // bounds [2,4]: Math.random 0 -> gap 2.0, 0.999999 -> gap 4.0.
     vi.spyOn(Math, "random")
       .mockReturnValueOnce(0) // start seed -> 2
-      .mockReturnValueOnce(0.9) // reseed after first cue -> 4
-      .mockReturnValue(0.9);
+      .mockReturnValueOnce(0.999999) // reseed after first cue -> 4
+      .mockReturnValue(0.999999);
     render(<Timer />);
     setDuration(0, 10);
     fireEvent.click(randomRadio());
@@ -617,8 +620,8 @@ describe("Timer — random cue (BPR-005)", () => {
     // bounds [2,3]: seed gap 2, reseed gap 3 -> would land at elapsed 5 == 00:00.
     vi.spyOn(Math, "random")
       .mockReturnValueOnce(0) // -> 2
-      .mockReturnValueOnce(0.9) // -> 3
-      .mockReturnValue(0.9);
+      .mockReturnValueOnce(0.999999) // -> 3
+      .mockReturnValue(0.999999);
     render(<Timer />);
     setDuration(0, 5);
     fireEvent.click(randomRadio());
@@ -635,8 +638,8 @@ describe("Timer — random cue (BPR-005)", () => {
   });
 
   test("5.6b the largest valid gap still cues at one second remaining", async () => {
-    // bounds [3,4], span 2: Math.random 0.9 -> gap 4, landing at elapsed 4 (00:01).
-    vi.spyOn(Math, "random").mockReturnValue(0.9);
+    // bounds [3,4]: Math.random 0.999999 -> gap 4, landing at elapsed 4 (00:01).
+    vi.spyOn(Math, "random").mockReturnValue(0.999999);
     render(<Timer />);
     setDuration(0, 5);
     fireEvent.click(randomRadio());
@@ -798,10 +801,10 @@ describe("Timer — random cue (BPR-005)", () => {
     expect(minInput()).toHaveValue(2);
     expect(maxInput()).toHaveValue(4);
 
-    // A fresh Start re-draws the gap — now 4 (0.9 over span 3), so no cue at
+    // A fresh Start re-draws the gap — now 4 (0.999999 over [2,4]), so no cue at
     // elapsed 2, one cue at elapsed 4. Count the delta since reset/pause also
     // construct /audio/interval.mp3.
-    rand.mockReturnValue(0.9);
+    rand.mockReturnValue(0.999999);
     const before = beeps();
     await start();
 
@@ -811,14 +814,31 @@ describe("Timer — random cue (BPR-005)", () => {
     advance(2000); // elapsed 4 -> one cue
     expect(beeps() - before).toBe(1);
   });
+
+  test("5.12 fires on a sub-second gap that the old whole-second engine could not", async () => {
+    // bounds [2,4]: Math.random 0.15 -> floor(0.15*21)=3 tenths over min -> gap 2.3s.
+    vi.spyOn(Math, "random").mockReturnValue(0.15);
+    render(<Timer />);
+    setDuration(0, 10);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+
+    advance(2200); // elapsed 2.2s (22 ticks) -> gap not yet reached
+    expect(beeps()).toBe(0);
+
+    advance(100); // elapsed 2.3s (23 ticks) -> cue fires
+    expect(beeps()).toBe(1);
+  });
 });
 
 // BPR-006 — Violet flash overlay on cue beeps. Reuses the AudioMock harness:
 // fireCue() constructs /audio/interval.mp3 AND (when enabled and not reduced
-// motion) lights the data-testid="flash-overlay" for 200ms. The overlay reflects
+// motion) lights the data-testid="flash-overlay" for 100ms. The overlay reflects
 // its lit state via opacity-100 (lit) / opacity-0 (unlit). Beeps are always >= 1s
-// apart, while the flash window is 200ms, so the two-step "advance to the beep
-// tick (lit), then advance 200ms (unlit)" pattern observes both states cleanly.
+// apart, while the flash window is 100ms, so the two-step "advance to the beep
+// tick (lit), then advance 100ms (unlit)" pattern observes both states cleanly.
 describe("Timer — visual flash (BPR-006)", () => {
   // Random-cue cases stub Math.random; restore it like the BPR-005 block.
   afterEach(() => {
@@ -826,12 +846,15 @@ describe("Timer — visual flash (BPR-006)", () => {
   });
 
   const flashCheckbox = () =>
-    screen.getByRole("checkbox", { name: "Visual flash" });
+    screen.getByRole("checkbox", { name: "Flash at beep" });
   const overlay = () => screen.getByTestId("flash-overlay");
 
-  test("6.1 the Visual flash checkbox is present and toggles", () => {
+  test("6.1 the Visual flash checkbox appears outside Normal mode and toggles", () => {
     render(<Timer />);
+    // Hidden in Normal mode — there is no cue to flash.
+    expect(screen.queryByRole("checkbox", { name: "Flash at beep" })).toBeNull();
 
+    fireEvent.click(paceRadio());
     expect(flashCheckbox()).not.toBeChecked();
     fireEvent.click(flashCheckbox());
     expect(flashCheckbox()).toBeChecked();
@@ -851,7 +874,7 @@ describe("Timer — visual flash (BPR-006)", () => {
     expect(beeps()).toBe(1);
     expect(overlay()).toHaveClass("opacity-100");
 
-    advance(200); // flash-clear timeout fires
+    advance(100); // flash-clear timeout fires
     expect(overlay()).toHaveClass("opacity-0");
   });
 
@@ -869,7 +892,7 @@ describe("Timer — visual flash (BPR-006)", () => {
     expect(beeps()).toBe(1);
     expect(overlay()).toHaveClass("opacity-100");
 
-    advance(200); // flash-clear timeout fires
+    advance(100); // flash-clear timeout fires
     expect(overlay()).toHaveClass("opacity-0");
   });
 
@@ -890,15 +913,15 @@ describe("Timer — visual flash (BPR-006)", () => {
 
     advance(1000); // elapsed 1 -> beep
     expect(overlay()).toHaveClass("opacity-100");
-    advance(200);
+    advance(100);
     expect(overlay()).toHaveClass("opacity-0");
 
-    advance(800); // elapsed 2 -> next beep
+    advance(900); // elapsed 2 -> next beep
     expect(overlay()).toHaveClass("opacity-100");
-    advance(200);
+    advance(100);
     expect(overlay()).toHaveClass("opacity-0");
 
-    advance(800); // elapsed 3 -> next beep
+    advance(900); // elapsed 3 -> next beep
     expect(overlay()).toHaveClass("opacity-100");
   });
 
@@ -919,6 +942,7 @@ describe("Timer — visual flash (BPR-006)", () => {
   test("6.6 Reset plays the interval cue but does not light the overlay", () => {
     render(<Timer />);
     setDuration(0, 5);
+    fireEvent.click(paceRadio()); // reveal the flash toggle
     fireEvent.click(flashCheckbox()); // even with flash enabled
     fireEvent.click(resetButton()); // idle -> Reset is enabled
 
@@ -951,6 +975,8 @@ describe("Timer — visual flash (BPR-006)", () => {
   test("6.8 checkbox disables while running and its checked state survives Reset", async () => {
     render(<Timer />);
     setDuration(0, 5);
+    fireEvent.click(paceRadio()); // reveal the flash toggle
+    fireEvent.change(paceInput(), { target: { value: "1" } }); // valid interval so Start works
     fireEvent.click(flashCheckbox());
     expect(flashCheckbox()).toBeChecked();
     // The base-ui checkbox is a <span role="checkbox"> — it exposes its locked
@@ -973,5 +999,533 @@ describe("Timer — visual flash (BPR-006)", () => {
   test("6.9 the overlay is non-interactive (pointer-events-none)", () => {
     render(<Timer />);
     expect(overlay()).toHaveClass("pointer-events-none");
+  });
+
+  test("6.10 switching back to Normal hides and clears the flash toggle", () => {
+    render(<Timer />);
+    fireEvent.click(paceRadio());
+    fireEvent.click(flashCheckbox());
+    expect(flashCheckbox()).toBeChecked();
+
+    // Selecting Normal removes the toggle and its state cannot linger true.
+    fireEvent.click(offRadio());
+    expect(screen.queryByRole("checkbox", { name: "Flash at beep" })).toBeNull();
+
+    // Re-entering a cue mode shows the toggle unchecked, not the stale value.
+    fireEvent.click(paceRadio());
+    expect(flashCheckbox()).not.toBeChecked();
+  });
+});
+
+describe("Timer — round-based training (BPR-008)", () => {
+  // The checkbox and the round-count input both carry the "Rounds" label; the
+  // checkbox is a <span role="checkbox">, the count a number <input> (spinbutton),
+  // so the role disambiguates them. Rest inputs resolve by their distinct labels.
+  const roundsCheckbox = () => screen.getByRole("checkbox", { name: "Rounds" });
+  const roundCountInput = () =>
+    screen.getByRole("spinbutton", { name: "Rounds" });
+  // The Rest inputs mirror the Work layout and share the "Minutes"/"Seconds"
+  // accessible names. Rest renders after Work, so it is the second match.
+  const restMinInput = () => screen.getAllByLabelText("Minutes")[1];
+  const restSecInput = () => screen.getAllByLabelText("Seconds")[1];
+  // The session phase indicator is the <span> reading "Work"/"Rest". Rounds mode
+  // also renders a "Work" duration <label> above Minutes/Seconds, so scope the
+  // phase query to the span to keep the two "Work" texts unambiguous.
+  const phaseText = () =>
+    screen.getByText(/^(Work|Rest)$/, { selector: "span" });
+
+  const starts = () =>
+    constructedSrcs.filter((s) => s === "/audio/timer-start.mp3").length;
+  const stops = () =>
+    constructedSrcs.filter((s) => s === "/audio/timer-stop.mp3").length;
+  const roundStarts = () =>
+    constructedSrcs.filter((s) => s === "/audio/round-start.mp3").length;
+
+  const enableRounds = () => fireEvent.click(roundsCheckbox());
+  const setRounds = (n: number) =>
+    fireEvent.change(roundCountInput(), { target: { value: String(n) } });
+  const setRest = (min: number, sec: number) => {
+    fireEvent.change(restMinInput(), { target: { value: String(min) } });
+    fireEvent.change(restSecInput(), { target: { value: String(sec) } });
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("8.1 rounds off leaves the single-timer path unchanged", async () => {
+    render(<Timer />);
+    setDuration(0, 5);
+    // No rounds UI while the toggle is unchecked.
+    expect(screen.queryByRole("spinbutton", { name: "Rounds" })).toBeNull();
+    // Only the single work Minutes input exists — no Rest section yet.
+    expect(screen.getAllByLabelText("Minutes")).toHaveLength(1);
+
+    await start();
+    advance(1000); // running mid-countdown
+    const running = screen.getByText("00:04");
+    expect(running).toHaveClass("text-timer-active"); // not amber/rounds colour
+    expect(screen.queryByText(/Round \d+ \/ \d+/)).toBeNull();
+
+    advance(4000);
+    const done = screen.getByText("00:00");
+    expect(done).toHaveClass("text-timer-idle");
+    expect(constructedSrcs).toContain("/audio/timer-stop.mp3");
+  });
+
+  test("8.2 the Rounds toggle is available in every cue mode", () => {
+    render(<Timer />);
+    expect(roundsCheckbox()).toBeInTheDocument();
+    fireEvent.click(paceRadio());
+    expect(roundsCheckbox()).toBeInTheDocument();
+    fireEvent.click(randomRadio());
+    expect(roundsCheckbox()).toBeInTheDocument();
+    fireEvent.click(offRadio());
+    expect(roundsCheckbox()).toBeInTheDocument();
+  });
+
+  test("8.3 enabling Rounds reveals the count (default 1), rest inputs, and a Work label", () => {
+    render(<Timer />);
+    // Only the work Minutes input, and no "Work round" heading, until enabled.
+    expect(screen.getAllByLabelText("Minutes")).toHaveLength(1);
+    expect(screen.queryByText("Work round")).toBeNull();
+
+    enableRounds();
+    expect(roundsCheckbox()).toBeChecked();
+    expect(roundCountInput()).toHaveValue(1); // default shown as 1
+    expect(restMinInput()).toBeInTheDocument();
+    expect(restSecInput()).toBeInTheDocument();
+    // The Rest section is revealed, so a second Minutes input now exists.
+    expect(screen.getAllByLabelText("Minutes")).toHaveLength(2);
+    // The Minutes/Seconds pair is now headed as the work-round duration.
+    expect(screen.getByText("Work round")).toBeInTheDocument();
+    // Rest seconds clamp to 0–59 like the work seconds input.
+    fireEvent.change(restSecInput(), { target: { value: "75" } });
+    expect(restSecInput()).toHaveValue(59);
+  });
+
+  test("8.4 round config locks while running and unlocks after Reset", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    enableRounds();
+    setRounds(2);
+    setRest(0, 2);
+    expect(roundCountInput()).not.toBeDisabled();
+
+    await start();
+    advance(500); // into Work(1)
+    expect(roundsCheckbox()).toHaveAttribute("aria-disabled", "true");
+    expect(roundCountInput()).toBeDisabled();
+    expect(restMinInput()).toBeDisabled();
+    expect(restSecInput()).toBeDisabled();
+
+    fireEvent.click(pauseButton());
+    fireEvent.click(resetButton());
+    expect(roundsCheckbox()).not.toHaveAttribute("aria-disabled", "true");
+    expect(roundCountInput()).not.toBeDisabled();
+  });
+
+  test("8.5 idle with Rounds on previews the work duration in idle grey + Round 1/N", () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    enableRounds();
+    setRounds(3);
+    const digits = screen.getByText("00:03");
+    expect(digits).toHaveClass("text-timer-idle"); // idle grey preview
+    expect(screen.getByText("Round 1 / 3")).toBeInTheDocument();
+    // No phase indicator before Start (the "Work" duration label is a <label>,
+    // not the phase <span>, so scope the query to the span).
+    expect(
+      screen.queryByText(/^(Work|Rest)$/, { selector: "span" }),
+    ).toBeNull();
+  });
+
+  test("8.6 runs Work → Rest → Work with no Ready stage and no trailing rest (N=2)", async () => {
+    render(<Timer />);
+    setDuration(0, 3); // work
+    enableRounds();
+    setRounds(2);
+    setRest(0, 2);
+    await start();
+
+    // Work(1) starts immediately — there is no Ready countdown.
+    expect(phaseText()).toHaveTextContent("Work");
+    expect(screen.getByText("Round 1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+
+    advance(3000); // Work(1) -> Rest (upcoming round shown)
+    expect(phaseText()).toHaveTextContent("Rest");
+    expect(screen.getByText("Round 2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+
+    advance(2000); // Rest -> Work(2)
+    expect(phaseText()).toHaveTextContent("Work");
+    expect(screen.getByText("Round 2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+
+    advance(3000); // Work(2) -> complete, no trailing rest
+    const done = screen.getByText("00:00");
+    expect(done).toHaveClass("text-timer-idle");
+    expect(screen.queryByText(/Round \d+ \/ \d+/)).toBeNull();
+    expect(
+      screen.queryByText(/^(Work|Rest)$/, { selector: "span" }),
+    ).toBeNull();
+  });
+
+  test("8.7 a single round runs just Work with no rest phase (N=1)", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    enableRounds();
+    setRounds(1);
+    await start();
+
+    // Work(1) starts immediately — no Ready stage.
+    expect(phaseText()).toHaveTextContent("Work");
+    expect(screen.getByText("Round 1 / 1")).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+
+    advance(3000); // -> complete
+    expect(screen.getByText("00:00")).toBeInTheDocument();
+    // No Rest phase ever appeared.
+    expect(screen.queryByText(/^Rest$/, { selector: "span" })).toBeNull();
+  });
+
+  test("8.8 digits are Emerald in Work, Amber in Rest, and Red when paused", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    enableRounds();
+    setRounds(2);
+    setRest(0, 2);
+    await start();
+
+    expect(screen.getByText("00:03")).toHaveClass("text-timer-active"); // Work
+
+    fireEvent.click(pauseButton()); // paused during Work
+    expect(screen.getByText("00:03")).toHaveClass("text-timer-paused");
+
+    await resume();
+    advance(3000); // Work -> Rest
+    expect(screen.getByText("00:02")).toHaveClass("text-timer-rest");
+  });
+
+  test("8.9 session start rings only the start bell (no round cue); later Work entries ring round-start; leaving Work rings stop (N=2)", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    enableRounds();
+    setRounds(2);
+    setRest(0, 2);
+    await start();
+    // Session start (round 1) plays the start bell only — the round-start cue is
+    // suppressed for the first work round.
+    expect(constructedSrcs).toContain("/audio/timer-start.mp3");
+    expect(constructedSrcs).not.toContain("/audio/round-start.mp3");
+    expect(starts()).toBe(1);
+    expect(roundStarts()).toBe(0); // round 1 does NOT ring the round cue
+    expect(stops()).toBe(0);
+
+    advance(3000); // Work(1) -> Rest: stop bell, still no round cue
+    expect(stops()).toBe(1);
+    expect(roundStarts()).toBe(0);
+
+    advance(2000); // Rest -> Work(2): round-start rings for round 2
+    expect(roundStarts()).toBe(1);
+    expect(starts()).toBe(1); // session start bell rang only once
+
+    advance(3000); // Work(2) -> complete: stop bell
+    expect(stops()).toBe(2);
+    expect(roundStarts()).toBe(1); // only rounds 2..N ring round-start
+  });
+
+  test("8.10 N=1 rings one start bell, no round-start, one stop bell", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    enableRounds();
+    setRounds(1);
+    await start();
+    // Round 1 is the only round: start bell rings, round-start never does.
+    expect(constructedSrcs).not.toContain("/audio/round-start.mp3");
+
+    advance(3000); // Work(1) -> complete
+    expect(starts()).toBe(1);
+    expect(roundStarts()).toBe(0);
+    expect(stops()).toBe(1);
+  });
+
+  test("8.11 Pace cues fire in every Work phase only, never in Rest", async () => {
+    render(<Timer />);
+    setDuration(0, 4); // work
+    enableRounds();
+    setRounds(2);
+    setRest(0, 3);
+    fireEvent.click(paceRadio());
+    fireEvent.change(paceInput(), { target: { value: "1" } }); // 1s, < 4s work
+    await start();
+
+    expect(beeps()).toBe(0); // no beep at Work(1) start
+
+    advance(3000); // Work(1) elapsed 3s -> beeps at 1,2,3
+    expect(beeps()).toBe(3);
+
+    advance(1000); // Work(1) 00:00 -> Rest; no beep at the phase boundary
+    expect(beeps()).toBe(3);
+
+    advance(3000); // Rest: silent
+    expect(beeps()).toBe(3);
+
+    advance(3000); // Work(2) elapsed 3s -> schedule restarts, beeps at 1,2,3
+    expect(beeps()).toBe(6);
+
+    advance(1000); // Work(2) 00:00 -> complete; no beep at 00:00
+    expect(beeps()).toBe(6);
+  });
+
+  test("8.12 Random cues fire in Work only (gap re-seeds each Work phase)", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // gap === min === 2s
+    render(<Timer />);
+    setDuration(0, 5); // work
+    enableRounds();
+    setRounds(2);
+    setRest(0, 3);
+    fireEvent.click(randomRadio());
+    fireEvent.change(minInput(), { target: { value: "2" } });
+    fireEvent.change(maxInput(), { target: { value: "4" } });
+    await start();
+
+    advance(2000); // Work(1) elapsed 2s -> first cue
+    expect(beeps()).toBe(1);
+
+    advance(3000); // finish Work(1) (5s) -> Rest; elapsed-4s cue fired, none at 00:00
+    expect(beeps()).toBe(2);
+
+    advance(3000); // Rest: silent
+    expect(beeps()).toBe(2);
+
+    advance(2000); // Work(2) elapsed 2s -> next cue (gap re-seeded)
+    expect(beeps()).toBe(3);
+  });
+
+  test("8.13 Pause freezes the session; Resume continues the same phase", async () => {
+    render(<Timer />);
+    setDuration(0, 4); // work
+    enableRounds();
+    setRounds(2);
+    setRest(0, 2);
+    await start();
+    advance(1000); // Work(1) 00:03
+
+    fireEvent.click(pauseButton());
+    expect(screen.getByText("00:03")).toHaveClass("text-timer-paused");
+    expect(phaseText()).toHaveTextContent("Work");
+    expect(screen.getByText("Round 1 / 2")).toBeInTheDocument();
+    expect(constructedSrcs).toContain("/audio/interval.mp3");
+
+    advance(5000); // paused: nothing advances
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+
+    await resume();
+    advance(3000); // the remaining 3s of Work(1) -> Rest
+    expect(phaseText()).toHaveTextContent("Rest");
+    expect(screen.getByText("Round 2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+  });
+
+  test("8.14 Reset returns to idle, restores work duration, preserves settings", async () => {
+    render(<Timer />);
+    setDuration(0, 4);
+    enableRounds();
+    setRounds(3);
+    setRest(0, 2);
+    await start();
+    advance(3000); // Work(1), 00:01
+    fireEvent.click(pauseButton());
+
+    fireEvent.click(resetButton());
+    const digits = screen.getByText("00:04"); // restored work duration
+    expect(digits).toHaveClass("text-timer-idle"); // idle grey, not the rest/ready Amber
+    expect(screen.getByText("Round 1 / 3")).toBeInTheDocument();
+    expect(roundsCheckbox()).toBeChecked(); // settings preserved
+    expect(roundCountInput()).toHaveValue(3);
+    expect(restSecInput()).toHaveValue(2);
+    expect(constructedSrcs).toContain("/audio/interval.mp3");
+    expect(roundCountInput()).not.toBeDisabled(); // config re-enabled
+  });
+
+  test("8.15 no interval leaks after completion or unmount", async () => {
+    const { unmount } = render(<Timer />);
+    setDuration(0, 3);
+    enableRounds();
+    setRounds(1);
+    await start();
+    advance(3000); // Work(1) -> complete
+    expect(screen.getByText("00:00")).toBeInTheDocument();
+
+    const afterComplete = constructedSrcs.length;
+    advance(5000); // nothing should keep firing
+    expect(constructedSrcs.length).toBe(afterComplete);
+    expect(screen.getByText("00:00")).toBeInTheDocument();
+
+    unmount();
+    const afterUnmount = constructedSrcs.length;
+    advance(5000);
+    expect(constructedSrcs.length).toBe(afterUnmount);
+  });
+});
+
+// BPR-011 — interrupting the start/resume bell. The global AudioMock rejects
+// play(), which routes beginTick() straight through play().catch, so there is
+// never a "bell playing" window and the "ended" path is untested. This block
+// swaps in a bell-aware mock: the start bell's play() *resolves* (so beginTick
+// is gated on "ended", giving a window to click during the bell) and the
+// "ended" listener is captured so a test can dispatch it manually.
+describe("Timer — interrupting the start/resume bell (BPR-011)", () => {
+  let bells: BellAudioMock[] = [];
+
+  class BellAudioMock {
+    src: string;
+    ended: (() => void) | null = null;
+    play = vi.fn(() =>
+      this.src === "/audio/timer-start.mp3"
+        ? Promise.resolve()
+        : Promise.reject(new Error("autoplay blocked")),
+    );
+    pause = vi.fn();
+    addEventListener = vi.fn((type: string, cb: () => void) => {
+      if (type === "ended") this.ended = cb;
+    });
+    removeEventListener = vi.fn();
+
+    constructor(src: string) {
+      this.src = src;
+      constructedSrcs.push(src);
+      bells.push(this);
+    }
+  }
+
+  // The most recently constructed start/resume bell (both use timer-start.mp3).
+  const lastBell = () =>
+    bells.filter((b) => b.src === "/audio/timer-start.mp3").at(-1)!;
+  const bellCount = () =>
+    bells.filter((b) => b.src === "/audio/timer-start.mp3").length;
+
+  beforeEach(() => {
+    bells = [];
+    vi.stubGlobal("Audio", BellAudioMock);
+  });
+
+  test("11.1 clicking during the start bell resets to scratch, no stray tick", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+
+    await start(); // bell playing (play resolved) — beginTick gated on "ended"
+    expect(pauseButton()).toBeInTheDocument();
+    const bell = lastBell();
+    const beepsBefore = beeps();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // interrupt the initial start bell
+    });
+
+    // Back to idle/scratch: button reads Start, display at the full duration.
+    expect(startButton()).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+    expect(bell.pause).toHaveBeenCalled(); // bell stopped immediately
+    expect(beeps() - beepsBefore).toBe(1); // interval.mp3 cue played
+
+    // The pending "ended" must NOT start a countdown.
+    act(() => {
+      bell.ended?.();
+    });
+    advance(3000);
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+  });
+
+  test("11.2 Start after a start-bell reset replays the bell from scratch", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+
+    await start();
+    act(() => {
+      fireEvent.click(pauseButton()); // reset to scratch
+    });
+    const before = bellCount();
+
+    await start(); // Start again
+    expect(bellCount()).toBe(before + 1); // a fresh timer-start.mp3 rang
+
+    act(() => {
+      lastBell().ended?.(); // bell finishes -> countdown begins
+    });
+    advance(1000);
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+  });
+
+  test("11.3 rounds-mode start-bell interrupt resets the round indicator", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Rounds" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Rounds" }), {
+      target: { value: "3" },
+    });
+    // Rest duration is required (roundCount >= 2), else Start stays disabled.
+    fireEvent.change(screen.getAllByLabelText("Seconds")[1], {
+      target: { value: "1" },
+    });
+
+    await start();
+    expect(screen.getByText("Round 1 / 3")).toBeInTheDocument();
+    const bell = lastBell();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // interrupt -> reset to scratch
+    });
+
+    expect(startButton()).toBeInTheDocument();
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 / 3")).toBeInTheDocument();
+
+    act(() => {
+      bell.ended?.();
+    });
+    advance(3000);
+    expect(screen.getByText("00:03")).toBeInTheDocument();
+  });
+
+  test("11.4 clicking during the resume bell pauses (freezes), no stray tick", async () => {
+    render(<Timer />);
+    setDuration(0, 3);
+
+    await start();
+    act(() => {
+      lastBell().ended?.(); // start bell finishes -> ticking begins
+    });
+    advance(1000); // 00:03 -> 00:02
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // normal running pause
+    });
+    expect(resumeButton()).toBeInTheDocument();
+
+    await resume(); // resume bell playing (play resolved) — beginTick gated
+    expect(pauseButton()).toBeInTheDocument();
+    const resumeBell = lastBell();
+    const beepsBefore = beeps();
+
+    act(() => {
+      fireEvent.click(pauseButton()); // interrupt the resume bell
+    });
+
+    // Lands back in paused, frozen at the mid-countdown value.
+    expect(resumeButton()).toBeInTheDocument();
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+    expect(resumeBell.pause).toHaveBeenCalled();
+    expect(beeps() - beepsBefore).toBe(1);
+
+    // The pending "ended" must NOT start a countdown.
+    act(() => {
+      resumeBell.ended?.();
+    });
+    advance(3000);
+    expect(screen.getByText("00:02")).toBeInTheDocument();
   });
 });
